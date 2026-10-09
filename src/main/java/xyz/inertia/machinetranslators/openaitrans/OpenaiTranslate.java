@@ -31,6 +31,11 @@ import java.awt.*;
 import java.awt.Color;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -46,32 +51,26 @@ import javax.swing.event.DocumentListener;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import org.openide.awt.Mnemonics;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.FixedValue;
 import net.bytebuddy.matcher.ElementMatchers;
+import org.openide.awt.Mnemonics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // 抽象基础翻译器类
 abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachineTranslation {
     protected String configId;
     protected String displayName;
     protected boolean showConfigUI;
-    
+
     protected static final Logger LOGGER = LoggerFactory.getLogger(BaseOpenaiTranslate.class);
-    
-    protected final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-            .build();
+
+    protected final HttpClient httpClient =
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build();
     protected final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     // 共享的常量
     protected static final String[] openaiModels = {
         "gpt-5",
@@ -133,19 +132,19 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
     protected static final String PROPERTY_API_TEMPERATURE = "openai.api.temperature";
     protected static final String PROPERTY_API_CACHE = "openai.api.enable.cache";
     protected static final String PROPERTY_API_GLOSSARY = "openai.api.enable.glossary";
-    
+
     private static final ResourceBundle BUNDLE = ResourceBundle.getBundle("OpenaiTranslateBundle");
 
     static String getString(String key) {
         return BUNDLE.getString(key);
     }
-    
+
     public BaseOpenaiTranslate(String configId, String displayName, boolean showConfigUI) {
         this.configId = configId;
         this.displayName = displayName;
         this.showConfigUI = showConfigUI;
     }
-    
+
     @Override
     public String getName() {
         // This handles the case where the constructor is called by the superclass `BaseCachedTranslate`
@@ -158,15 +157,15 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
         }
         return getClass().getName();
     }
-    
+
     @Override
     public boolean isConfigurable() {
         return showConfigUI;
     }
-    
+
     @Override
     protected abstract String getPreferenceName();
-    
+
     protected String getConfigKey(String baseKey) {
         if ("api".equals(configId)) {
             return baseKey;
@@ -174,7 +173,7 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
             return baseKey.replace("openai.", "openai." + configId + ".");
         }
     }
-    
+
     protected String getCredential(String key) {
         String property = System.getProperty(key);
         if (property != null) {
@@ -182,7 +181,7 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
         }
         return CredentialsManager.getInstance().retrieve(key).orElse("");
     }
-    
+
     protected void setCredential(String id, String value, boolean temporary) {
         System.setProperty(id, value);
         if (temporary) {
@@ -191,13 +190,21 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
             CredentialsManager.getInstance().store(id, value);
         }
     }
-    
+
     // 执行实际的HTTP翻译请求
-    protected String executeTranslationRequest(String url, String apiKey, String model, double temperature, 
-                                               String prompt, String text, String provider, 
-                                               Language sLang, Language tLang) throws Exception {
+    protected String executeTranslationRequest(
+            String url,
+            String apiKey,
+            String model,
+            double temperature,
+            String prompt,
+            String text,
+            String provider,
+            Language sLang,
+            Language tLang)
+            throws Exception {
         String result = "";
-        
+
         try {
             HttpResponse<String> response;
             if ("OpenAI".equals(provider) || "VolcEngine".equals(provider)) {
@@ -252,7 +259,8 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
                 if (errorNode == null) {
                     JsonNode choicesArray = jsonNode.get("choices");
                     if (choicesArray != null && choicesArray.isArray() && choicesArray.size() > 0) {
-                        JsonNode contentNode = choicesArray.get(0).get("message").get("content");
+                        JsonNode contentNode =
+                                choicesArray.get(0).get("message").get("content");
                         result = contentNode != null ? contentNode.asText() : "[Cannot get output]";
                         putToCache(sLang, tLang, text, result);
                     } else {
@@ -410,7 +418,9 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
                                     }
                                 }
                                 if (textNode == null) {
-                                    textNode = partsArray.get(partsArray.size() - 1).get("text");
+                                    textNode = partsArray
+                                            .get(partsArray.size() - 1)
+                                            .get("text");
                                 }
                                 result = textNode != null ? textNode.asText() : "[cannot get output]";
                                 putToCache(sLang, tLang, text, result);
@@ -450,7 +460,7 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
             return String.format(getString("MT_ENGINE_OPENAI_GENERAL_ERROR"), e.getMessage());
         }
     }
-    
+
     // 翻译实现将在具体子类中完成
     @Override
     protected abstract String translate(Language sLang, Language tLang, String text) throws Exception;
@@ -458,18 +468,18 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
 
 // 通用的配置翻译器实例
 class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
-    
+
     public ConfigurableOpenaiTranslate(String configId, String displayName, boolean showConfigUI) {
         super(configId, displayName, showConfigUI);
     }
-    
+
     /**
      * 新增构造函数，用于服务定位器模式
      */
     protected ConfigurableOpenaiTranslate(OpenaiTranslate.ConfigInfo info) {
         super(info.configId, info.displayName, false);
     }
-    
+
     /**
      * 为动态生成的子类提供无参构造函数.
      * OmegaT 框架需要一个无参构造函数来实例化插件.
@@ -480,7 +490,7 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
         // 我们将初始化推迟到实际使用之前
         super(null, null, false); // 临时调用, 值将在之后被正确设置
     }
-    
+
     private void lazyInit() {
         // 如果 configId 为 null，说明是首次初始化
         if (configId == null) {
@@ -494,13 +504,13 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
             }
         }
     }
-    
+
     @Override
     protected String translate(Language sLang, Language tLang, String text) throws Exception {
         lazyInit(); // 确保在首次翻译时已初始化
         return performTranslation(sLang, tLang, text, configId);
     }
-    
+
     // 实际的翻译逻辑，被主类和实例类共享
     private String performTranslation(Language sLang, Language tLang, String text, String configId) throws Exception {
         String apiKey = getCredential(getConfigKey(PROPERTY_API_KEY));
@@ -524,7 +534,8 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
         }
 
         // 处理自定义模型
-        boolean useCustomModel = Boolean.parseBoolean(Preferences.getPreference(getConfigKey(PROPERTY_USE_CUSTOM_MODEL)));
+        boolean useCustomModel =
+                Boolean.parseBoolean(Preferences.getPreference(getConfigKey(PROPERTY_USE_CUSTOM_MODEL)));
         if (useCustomModel) {
             String customModel = Preferences.getPreference(getConfigKey(PROPERTY_API_CUSTOM_MODEL));
             if (customModel != null && !customModel.trim().isEmpty()) {
@@ -569,7 +580,13 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
         String lvSourceLang = sLang.getLanguage();
         String lvTargetLang = tLang.getLanguage();
 
-        String defaultPrompt = String.format("Please translate the following text from %s to %s.", lvSourceLang, lvTargetLang);
+        String defaultPrompt = String.format(
+                "You are a translation tool integrated in a CAT (Computer-Assisted Translation) tool. "
+                        + "Translate the given text from %s to %s.\n"
+                        + "STRICT RULES:\n"
+                        + "1. Tag Preservation: Preserve all inline tags and placeholders (e.g., <placeholder .../>, <guibutton>...</guibutton>, <tag>...</tag>) EXACTLY as they appear. Do NOT translate tag names or attributes. Do NOT delete, move, or add spaces inside tags. Only translate the translatable text outside or between tags.\n"
+                        + "2. Format & Segmentation: Keep segmentation and formatting intact. Output ONLY the translated text with preserved tags. Do NOT add markdown code fences, notes, or explanations.",
+                lvSourceLang, lvTargetLang);
         if (prompt.isEmpty()) {
             prompt = defaultPrompt;
         }
@@ -594,10 +611,10 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
                 prompt = prompt + glossaryTable.toString();
             }
         }
-        
+
         return executeTranslationRequest(url, apiKey, model, temperature, prompt, lvShortText, provider, sLang, tLang);
     }
-    
+
     @Override
     protected String getConfigKey(String baseKey) {
         lazyInit(); // 确保在获取配置键时已初始化
@@ -616,7 +633,7 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
 }
 
 public class OpenaiTranslate extends BaseOpenaiTranslate {
-    
+
     // 默认插件构造函数
     public OpenaiTranslate() {
         super("api", "Openai Translate", true);
@@ -636,7 +653,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
     protected String translate(Language sLang, Language tLang, String text) throws Exception {
         return performTranslation(sLang, tLang, text);
     }
-    
+
     // 实际的翻译逻辑，使用默认配置
     private String performTranslation(Language sLang, Language tLang, String text) throws Exception {
         String apiKey = getCredential(getConfigKey(PROPERTY_API_KEY));
@@ -660,7 +677,8 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         }
 
         // 处理自定义模型
-        boolean useCustomModel = Boolean.parseBoolean(Preferences.getPreference(getConfigKey(PROPERTY_USE_CUSTOM_MODEL)));
+        boolean useCustomModel =
+                Boolean.parseBoolean(Preferences.getPreference(getConfigKey(PROPERTY_USE_CUSTOM_MODEL)));
         if (useCustomModel) {
             String customModel = Preferences.getPreference(getConfigKey(PROPERTY_API_CUSTOM_MODEL));
             if (customModel != null && !customModel.trim().isEmpty()) {
@@ -705,7 +723,13 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         String lvSourceLang = sLang.getLanguage();
         String lvTargetLang = tLang.getLanguage();
 
-        String defaultPrompt = String.format("Please translate the following text from %s to %s.", lvSourceLang, lvTargetLang);
+        String defaultPrompt = String.format(
+                "You are a translation tool integrated in a CAT (Computer-Assisted Translation) tool. "
+                        + "Translate the given text from %s to %s.\n"
+                        + "STRICT RULES:\n"
+                        + "1. Tag Preservation: Preserve all inline tags and placeholders (e.g., <placeholder .../>, <guibutton>...</guibutton>, <tag>...</tag>) EXACTLY as they appear. Do NOT translate tag names or attributes. Do NOT delete, move, or add spaces inside tags. Only translate the translatable text outside or between tags.\n"
+                        + "2. Format & Segmentation: Keep segmentation and formatting intact. Output ONLY the translated text with preserved tags. Do NOT add markdown code fences, notes, or explanations.",
+                lvSourceLang, lvTargetLang);
         if (prompt.isEmpty()) {
             prompt = defaultPrompt;
         }
@@ -730,10 +754,10 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 prompt = prompt + glossaryTable.toString();
             }
         }
-        
+
         return executeTranslationRequest(url, apiKey, model, temperature, prompt, lvShortText, provider, sLang, tLang);
     }
-    
+
     @Override
     protected String getConfigKey(String baseKey) {
         if ("api".equals(configId)) {
@@ -742,13 +766,13 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             return baseKey.replace("openai.", "openai." + configId + ".");
         }
     }
-    
+
     // 多配置管理字段
     protected static final String PROPERTY_CONFIG_LIST = "openai.config.list";
     protected static final String PROPERTY_CONFIG_NAME_TEMPLATE = "openai.%s.config.name";
     protected static final String PROPERTY_CONFIG_ENABLED_TEMPLATE = "openai.%s.config.enabled";
     protected static final String PROPERTY_CONFIG_CREATED_TEMPLATE = "openai.%s.config.created";
-    
+
     // API配置字段模板（用于多配置）
     protected static final String PROPERTY_API_KEY_TEMPLATE = "openai.%s.api.Key";
     protected static final String PROPERTY_API_URL_TEMPLATE = "openai.%s.api.url";
@@ -760,7 +784,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
     protected static final String PROPERTY_API_TEMPERATURE_TEMPLATE = "openai.%s.api.temperature";
     protected static final String PROPERTY_API_CACHE_TEMPLATE = "openai.%s.api.enable.cache";
     protected static final String PROPERTY_API_GLOSSARY_TEMPLATE = "openai.%s.api.enable.glossary";
-    
+
     /**
      * 生成配置ID
      */
@@ -772,7 +796,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         }
         return sb.toString();
     }
-    
+
     /**
      * 获取配置列表
      */
@@ -783,7 +807,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         }
         return Arrays.asList(listStr.split(","));
     }
-    
+
     /**
      * 保存配置列表
      */
@@ -791,13 +815,13 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         String listStr = String.join(",", configIds);
         Preferences.setPreference(PROPERTY_CONFIG_LIST, listStr);
     }
-    
+
     /**
      * 从Preferences加载单个配置数据
      */
     private ConfigTabData loadConfigData(String configId) {
         ConfigTabData data;
-        
+
         if ("api".equals(configId)) {
             // 第一个配置使用原有的key结构
             // 尝试从配置中读取名称，如果没有则使用默认值
@@ -810,84 +834,89 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             data.apiUrl = Preferences.getPreference(PROPERTY_API_URL);
             data.prompt = Preferences.getPreference(PROPERTY_API_PROMPT);
             data.temperature = Preferences.getPreference(PROPERTY_API_TEMPERATURE);
-            
+
             String savedModel = Preferences.getPreference(PROPERTY_API_MODEL);
             boolean useCustomModel = Boolean.parseBoolean(Preferences.getPreference(PROPERTY_USE_CUSTOM_MODEL));
-            
+
             data.useCustomModel = useCustomModel;
             if (useCustomModel) {
                 data.customModel = Preferences.getPreference(PROPERTY_API_CUSTOM_MODEL);
             } else {
                 data.model = savedModel != null ? savedModel : "gpt-4o";
             }
-            
+
             data.apiProvider = Preferences.getPreference(PROPERTY_API_PROVIDER);
             if (data.apiProvider == null) {
                 data.apiProvider = "OpenAI";
             }
-            
+
             data.enableCache = Boolean.parseBoolean(Preferences.getPreference(PROPERTY_API_CACHE));
             data.enableGlossary = Boolean.parseBoolean(Preferences.getPreference(PROPERTY_API_GLOSSARY));
             data.temporaryCredential = false;
-            
+
             // 加载默认配置的新字段
             String enabledStr = Preferences.getPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, "api"));
             data.enabled = enabledStr == null || enabledStr.trim().isEmpty() ? true : Boolean.parseBoolean(enabledStr);
-            
+
             data.createdTime = Preferences.getPreference(String.format(PROPERTY_CONFIG_CREATED_TEMPLATE, "api"));
             if (data.createdTime == null || data.createdTime.trim().isEmpty()) {
                 data.createdTime = String.valueOf(System.currentTimeMillis());
             }
-            
+
         } else {
             // 其他配置使用模板key结构
             String configName = Preferences.getPreference(String.format(PROPERTY_CONFIG_NAME_TEMPLATE, configId));
             if (configName == null || configName.trim().isEmpty()) {
                 configName = getString("CONFIG_NAME_PREFIX") + configId;
             }
-            
+
             data = new ConfigTabData(configId, configName);
-            data.enabled = Boolean.parseBoolean(Preferences.getPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, configId)));
+            data.enabled = Boolean.parseBoolean(
+                    Preferences.getPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, configId)));
             data.createdTime = Preferences.getPreference(String.format(PROPERTY_CONFIG_CREATED_TEMPLATE, configId));
-            
+
             data.apiKey = getCredential(String.format(PROPERTY_API_KEY_TEMPLATE, configId));
             data.apiUrl = Preferences.getPreference(String.format(PROPERTY_API_URL_TEMPLATE, configId));
             data.prompt = Preferences.getPreference(String.format(PROPERTY_API_PROMPT_TEMPLATE, configId));
             data.temperature = Preferences.getPreference(String.format(PROPERTY_API_TEMPERATURE_TEMPLATE, configId));
-            
+
             String savedModel = Preferences.getPreference(String.format(PROPERTY_API_MODEL_TEMPLATE, configId));
-            boolean useCustomModel = Boolean.parseBoolean(Preferences.getPreference(String.format(PROPERTY_USE_CUSTOM_MODEL_TEMPLATE, configId)));
-            
+            boolean useCustomModel = Boolean.parseBoolean(
+                    Preferences.getPreference(String.format(PROPERTY_USE_CUSTOM_MODEL_TEMPLATE, configId)));
+
             data.useCustomModel = useCustomModel;
             if (useCustomModel) {
-                data.customModel = Preferences.getPreference(String.format(PROPERTY_API_CUSTOM_MODEL_TEMPLATE, configId));
+                data.customModel =
+                        Preferences.getPreference(String.format(PROPERTY_API_CUSTOM_MODEL_TEMPLATE, configId));
             } else {
                 data.model = savedModel != null ? savedModel : "gpt-4o";
             }
-            
+
             data.apiProvider = Preferences.getPreference(String.format(PROPERTY_API_PROVIDER_TEMPLATE, configId));
             if (data.apiProvider == null) {
                 data.apiProvider = "OpenAI";
             }
-            
-            data.enableCache = Boolean.parseBoolean(Preferences.getPreference(String.format(PROPERTY_API_CACHE_TEMPLATE, configId)));
-            data.enableGlossary = Boolean.parseBoolean(Preferences.getPreference(String.format(PROPERTY_API_GLOSSARY_TEMPLATE, configId)));
+
+            data.enableCache = Boolean.parseBoolean(
+                    Preferences.getPreference(String.format(PROPERTY_API_CACHE_TEMPLATE, configId)));
+            data.enableGlossary = Boolean.parseBoolean(
+                    Preferences.getPreference(String.format(PROPERTY_API_GLOSSARY_TEMPLATE, configId)));
             data.temporaryCredential = false;
         }
-        
+
         return data;
     }
-    
+
     /**
      * 加载所有配置数据
      */
     private List<ConfigTabData> loadAllConfigs() {
         List<ConfigTabData> configs = new ArrayList<>();
-        
+
         // 首先加载默认配置（api）
         ConfigTabData defaultConfig = loadConfigData("api");
         configs.add(defaultConfig);
-        
+
         // 然后加载其他配置
         List<String> configIds = getConfigList();
         for (String configId : configIds) {
@@ -896,41 +925,41 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 configs.add(config);
             }
         }
-        
+
         return configs;
     }
-    
+
     /**
      * 保存所有配置数据
      */
     private void saveAllConfigurations(List<ConfigTabData> allConfigs) {
         // 收集所有配置ID（除了api）
         List<String> configIds = new ArrayList<>();
-        
+
         // 保存每个配置
         for (ConfigTabData config : allConfigs) {
             saveConfigData(config);
-            
+
             // 收集非默认配置的ID
             if (!"api".equals(config.configId)) {
                 configIds.add(config.configId);
             }
         }
-        
+
         // 更新配置列表
         saveConfigList(configIds);
-        
+
         // 清理已删除的配置
         cleanupDeletedConfigs(allConfigs);
     }
-    
+
     /**
      * 清理已删除的配置
      */
     private void cleanupDeletedConfigs(List<ConfigTabData> currentConfigs) {
         // 获取当前存储的配置列表
         List<String> storedConfigIds = getConfigList();
-        
+
         // 获取当前配置的ID列表
         List<String> currentConfigIds = new ArrayList<>();
         for (ConfigTabData config : currentConfigs) {
@@ -938,7 +967,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 currentConfigIds.add(config.configId);
             }
         }
-        
+
         // 找到需要删除的配置ID
         for (String storedId : storedConfigIds) {
             if (!currentConfigIds.contains(storedId)) {
@@ -947,7 +976,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             }
         }
     }
-    
+
     /**
      * 删除指定配置的所有设置
      */
@@ -956,12 +985,12 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         if ("api".equals(configId)) {
             return;
         }
-        
+
         // 删除所有相关的配置项
         Preferences.setPreference(String.format(PROPERTY_CONFIG_NAME_TEMPLATE, configId), "");
         Preferences.setPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, configId), "");
         Preferences.setPreference(String.format(PROPERTY_CONFIG_CREATED_TEMPLATE, configId), "");
-        
+
         // 删除API相关配置
         Preferences.setPreference(String.format(PROPERTY_API_URL_TEMPLATE, configId), "");
         Preferences.setPreference(String.format(PROPERTY_API_MODEL_TEMPLATE, configId), "");
@@ -972,11 +1001,11 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         Preferences.setPreference(String.format(PROPERTY_API_TEMPERATURE_TEMPLATE, configId), "");
         Preferences.setPreference(String.format(PROPERTY_API_CACHE_TEMPLATE, configId), "");
         Preferences.setPreference(String.format(PROPERTY_API_GLOSSARY_TEMPLATE, configId), "");
-        
+
         // 删除凭证
         setCredential(String.format(PROPERTY_API_KEY_TEMPLATE, configId), "", false);
     }
-    
+
     /**
      * 保存单个配置数据到Preferences
      */
@@ -985,15 +1014,16 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             // 第一个配置使用原有的key结构
             // 保存配置名称（新增）
             Preferences.setPreference(String.format(PROPERTY_CONFIG_NAME_TEMPLATE, "api"), data.name);
-            Preferences.setPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, "api"), String.valueOf(data.enabled));
+            Preferences.setPreference(
+                    String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, "api"), String.valueOf(data.enabled));
             Preferences.setPreference(String.format(PROPERTY_CONFIG_CREATED_TEMPLATE, "api"), data.createdTime);
-            
+
             boolean temporary = data.temporaryCredential;
             setCredential(PROPERTY_API_KEY, data.apiKey, temporary);
             Preferences.setPreference(PROPERTY_API_URL, data.apiUrl);
             Preferences.setPreference(PROPERTY_API_PROMPT, data.prompt);
             Preferences.setPreference(PROPERTY_API_TEMPERATURE, data.temperature);
-            
+
             Preferences.setPreference(PROPERTY_USE_CUSTOM_MODEL, String.valueOf(data.useCustomModel));
             if (data.useCustomModel) {
                 Preferences.setPreference(PROPERTY_API_CUSTOM_MODEL, data.customModel);
@@ -1001,34 +1031,41 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             } else {
                 Preferences.setPreference(PROPERTY_API_MODEL, data.model);
             }
-            
+
             Preferences.setPreference(PROPERTY_API_PROVIDER, data.apiProvider);
             Preferences.setPreference(PROPERTY_API_CACHE, String.valueOf(data.enableCache));
             Preferences.setPreference(PROPERTY_API_GLOSSARY, String.valueOf(data.enableGlossary));
-            
+
         } else {
             // 其他配置使用模板key结构
             Preferences.setPreference(String.format(PROPERTY_CONFIG_NAME_TEMPLATE, data.configId), data.name);
-            Preferences.setPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, data.configId), String.valueOf(data.enabled));
+            Preferences.setPreference(
+                    String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, data.configId), String.valueOf(data.enabled));
             Preferences.setPreference(String.format(PROPERTY_CONFIG_CREATED_TEMPLATE, data.configId), data.createdTime);
-            
+
             boolean temporary = data.temporaryCredential;
             setCredential(String.format(PROPERTY_API_KEY_TEMPLATE, data.configId), data.apiKey, temporary);
             Preferences.setPreference(String.format(PROPERTY_API_URL_TEMPLATE, data.configId), data.apiUrl);
             Preferences.setPreference(String.format(PROPERTY_API_PROMPT_TEMPLATE, data.configId), data.prompt);
-            Preferences.setPreference(String.format(PROPERTY_API_TEMPERATURE_TEMPLATE, data.configId), data.temperature);
-            
-            Preferences.setPreference(String.format(PROPERTY_USE_CUSTOM_MODEL_TEMPLATE, data.configId), String.valueOf(data.useCustomModel));
+            Preferences.setPreference(
+                    String.format(PROPERTY_API_TEMPERATURE_TEMPLATE, data.configId), data.temperature);
+
+            Preferences.setPreference(
+                    String.format(PROPERTY_USE_CUSTOM_MODEL_TEMPLATE, data.configId),
+                    String.valueOf(data.useCustomModel));
             if (data.useCustomModel) {
-                Preferences.setPreference(String.format(PROPERTY_API_CUSTOM_MODEL_TEMPLATE, data.configId), data.customModel);
+                Preferences.setPreference(
+                        String.format(PROPERTY_API_CUSTOM_MODEL_TEMPLATE, data.configId), data.customModel);
                 Preferences.setPreference(String.format(PROPERTY_API_MODEL_TEMPLATE, data.configId), "custom");
             } else {
                 Preferences.setPreference(String.format(PROPERTY_API_MODEL_TEMPLATE, data.configId), data.model);
             }
-            
+
             Preferences.setPreference(String.format(PROPERTY_API_PROVIDER_TEMPLATE, data.configId), data.apiProvider);
-            Preferences.setPreference(String.format(PROPERTY_API_CACHE_TEMPLATE, data.configId), String.valueOf(data.enableCache));
-            Preferences.setPreference(String.format(PROPERTY_API_GLOSSARY_TEMPLATE, data.configId), String.valueOf(data.enableGlossary));
+            Preferences.setPreference(
+                    String.format(PROPERTY_API_CACHE_TEMPLATE, data.configId), String.valueOf(data.enableCache));
+            Preferences.setPreference(
+                    String.format(PROPERTY_API_GLOSSARY_TEMPLATE, data.configId), String.valueOf(data.enableGlossary));
         }
     }
 
@@ -1038,14 +1075,14 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
     @SuppressWarnings("unused")
     public static void loadPlugins() {
         LOGGER.debug("加载 OpenaiTranslate Plugin");
-        
+
         // 注册默认插件
         Core.registerMachineTranslationClass(OpenaiTranslate.class);
-        
+
         // 注册额外的翻译插件实例
         registerAdditionalTranslators();
     }
-    
+
     /**
      * 注册额外的翻译器实例
      */
@@ -1055,23 +1092,26 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         for (String configId : configIds) {
             if (!"api".equals(configId)) { // 跳过默认配置
                 // 检查配置是否启用
-                String enabledStr = Preferences.getPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, configId));
-                boolean enabled = enabledStr == null || enabledStr.trim().isEmpty() ? true : Boolean.parseBoolean(enabledStr);
-                
+                String enabledStr =
+                        Preferences.getPreference(String.format(PROPERTY_CONFIG_ENABLED_TEMPLATE, configId));
+                boolean enabled =
+                        enabledStr == null || enabledStr.trim().isEmpty() ? true : Boolean.parseBoolean(enabledStr);
+
                 if (enabled) {
                     // 获取配置名称
-                    String configName = Preferences.getPreference(String.format(PROPERTY_CONFIG_NAME_TEMPLATE, configId));
+                    String configName =
+                            Preferences.getPreference(String.format(PROPERTY_CONFIG_NAME_TEMPLATE, configId));
                     if (configName == null || configName.trim().isEmpty()) {
                         configName = getString("CONFIG_NAME_PREFIX") + configId;
                     }
-                    
+
                     // 创建并注册配置特定的翻译器类
                     registerConfigSpecificTranslator(configId, configName);
                 }
             }
         }
     }
-    
+
     /**
      * 为特定配置注册翻译器
      */
@@ -1101,11 +1141,12 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
     /**
      * 为特定配置创建翻译器类
      */
-    private static Class<? extends BaseOpenaiTranslate> createConfigTranslatorClass(String configId, String configName) {
+    private static Class<? extends BaseOpenaiTranslate> createConfigTranslatorClass(
+            String configId, String configName) {
         // 使用工厂模式创建配置特定的翻译器类
         return ConfigSpecificTranslatorFactory.createTranslatorClass(configId, configName);
     }
-    
+
     /**
      * 中央配置注册表，用于存储类与配置信息的映射
      */
@@ -1123,42 +1164,59 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             this.displayName = displayName;
         }
     }
-    
+
     // 预定义的配置特定翻译器类
     public static class AdditionalTranslator1 extends ConfigurableOpenaiTranslate {
-        public AdditionalTranslator1() { super(translatorConfigs.get(AdditionalTranslator1.class)); }
+        public AdditionalTranslator1() {
+            super(translatorConfigs.get(AdditionalTranslator1.class));
+        }
     }
+
     public static class AdditionalTranslator2 extends ConfigurableOpenaiTranslate {
-        public AdditionalTranslator2() { super(translatorConfigs.get(AdditionalTranslator2.class)); }
+        public AdditionalTranslator2() {
+            super(translatorConfigs.get(AdditionalTranslator2.class));
+        }
     }
+
     public static class AdditionalTranslator3 extends ConfigurableOpenaiTranslate {
-        public AdditionalTranslator3() { super(translatorConfigs.get(AdditionalTranslator3.class)); }
+        public AdditionalTranslator3() {
+            super(translatorConfigs.get(AdditionalTranslator3.class));
+        }
     }
+
     public static class AdditionalTranslator4 extends ConfigurableOpenaiTranslate {
-        public AdditionalTranslator4() { super(translatorConfigs.get(AdditionalTranslator4.class)); }
+        public AdditionalTranslator4() {
+            super(translatorConfigs.get(AdditionalTranslator4.class));
+        }
     }
+
     public static class AdditionalTranslator5 extends ConfigurableOpenaiTranslate {
-        public AdditionalTranslator5() { super(translatorConfigs.get(AdditionalTranslator5.class)); }
+        public AdditionalTranslator5() {
+            super(translatorConfigs.get(AdditionalTranslator5.class));
+        }
     }
-    
+
     /**
      * 配置特定翻译器的工厂类
      */
     private static class ConfigSpecificTranslatorFactory {
         private static int translatorCounter = 0;
         private static final List<Class<? extends BaseOpenaiTranslate>> translatorClasses = Arrays.asList(
-                AdditionalTranslator1.class, AdditionalTranslator2.class,
-                AdditionalTranslator3.class, AdditionalTranslator4.class, AdditionalTranslator5.class
-        );
+                AdditionalTranslator1.class,
+                AdditionalTranslator2.class,
+                AdditionalTranslator3.class,
+                AdditionalTranslator4.class,
+                AdditionalTranslator5.class);
 
         static Class<? extends BaseOpenaiTranslate> createTranslatorClass(String configId, String displayName) {
             // 循环使用预定义的类
-            Class<? extends BaseOpenaiTranslate> translatorClass = translatorClasses.get(translatorCounter % translatorClasses.size());
+            Class<? extends BaseOpenaiTranslate> translatorClass =
+                    translatorClasses.get(translatorCounter % translatorClasses.size());
             translatorCounter++;
-            
+
             // 将配置信息存入中央注册表，以类作为键
             translatorConfigs.put(translatorClass, new ConfigInfo(configId, displayName));
-            
+
             return translatorClass;
         }
     }
@@ -1227,10 +1285,10 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
 
     // 配置数据模型
     public static class ConfigTabData {
-        public String configId;           // 配置唯一标识符
-        public String name;               // 配置显示名称
-        public boolean enabled;           // 是否启用此配置
-        public String createdTime;        // 创建时间
+        public String configId; // 配置唯一标识符
+        public String name; // 配置显示名称
+        public boolean enabled; // 是否启用此配置
+        public String createdTime; // 创建时间
         public String apiKey;
         public String apiUrl;
         public String prompt;
@@ -1242,7 +1300,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         public boolean enableCache;
         public boolean enableGlossary;
         public boolean temporaryCredential;
-        
+
         public ConfigTabData(String name) {
             this.configId = generateConfigId();
             this.name = name;
@@ -1261,7 +1319,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             this.enableGlossary = true;
             this.temporaryCredential = false;
         }
-        
+
         public ConfigTabData(String configId, String name) {
             this.configId = configId;
             this.name = name;
@@ -1280,7 +1338,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             this.enableGlossary = true;
             this.temporaryCredential = false;
         }
-        
+
         public ConfigTabData copy() {
             ConfigTabData copy = new ConfigTabData(this.name);
             copy.configId = generateConfigId(); // 生成新的ID
@@ -1301,277 +1359,184 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         }
     }
 
-    // 动态标签页组件
+    // 动态标签页组件（使用原生 JTabbedPane，支援 SCROLL_TAB_LAYOUT 避免溢出與文字重疊）
     @SuppressWarnings("serial")
     public class DynamicTabbedPane extends JPanel {
-        private JPanel tabBar;
-        private JPanel contentArea;
-        private CardLayout cardLayout;
+        private JTabbedPane tabbedPane;
         private List<ConfigTabInfo> tabs;
-        private int selectedIndex = -1;
         private int tabCounter = 1;
-        
-        private class ConfigTabInfo {
+
+        public class ConfigTabInfo {
             String id;
             String title;
             ConfigTabPanel panel;
-            JButton tabButton;
-            JButton closeButton;
+            JScrollPane scrollPane;
             ConfigTabData data;
         }
-        
+
         public DynamicTabbedPane() {
-            tabs = new ArrayList<>();
-            initComponents();
+            this((List<ConfigTabData>) null);
         }
-        
+
         public DynamicTabbedPane(ConfigTabData initialData) {
             tabs = new ArrayList<>();
-            initComponents(initialData);
+            List<ConfigTabData> list = new ArrayList<>();
+            if (initialData != null) {
+                list.add(initialData);
+            }
+            initComponents(list);
         }
-        
+
         public DynamicTabbedPane(List<ConfigTabData> allConfigs) {
             tabs = new ArrayList<>();
             initComponents(allConfigs);
         }
-        
-        private void initComponents() {
-            initComponents((ConfigTabData) null);
-        }
-        
-        private void initComponents(ConfigTabData initialData) {
-            setLayout(new BorderLayout());
-            
-            // 创建标签页栏
-            tabBar = new JPanel();
-            tabBar.setLayout(new BoxLayout(tabBar, BoxLayout.X_AXIS));
-            tabBar.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.GRAY),
-                BorderFactory.createEmptyBorder(5, 5, 5, 5)
-            ));
-            
-            // 创建内容区域
-            cardLayout = new CardLayout();
-            contentArea = new JPanel(cardLayout);
-            
-            // 添加按钮
-            JButton addButton = new JButton("+");
-            addButton.setToolTipText(getString("CONFIG_ADD_TAB_TOOLTIP"));
-            addButton.setPreferredSize(new Dimension(30, 25));
-            addButton.setMaximumSize(new Dimension(30, 25));
-            addButton.addActionListener(e -> addNewTab());
-            
-            tabBar.add(Box.createHorizontalStrut(5));
-            tabBar.add(addButton);
-            tabBar.add(Box.createHorizontalGlue());
-            
-            add(tabBar, BorderLayout.NORTH);
-            add(contentArea, BorderLayout.CENTER);
-            
-            // 添加默认标签页，如果有初始数据则使用初始数据
-            if (initialData != null) {
-                addDefaultTabWithData(initialData);
-            } else {
-                addDefaultTab();
-            }
-        }
-        
+
         private void initComponents(List<ConfigTabData> allConfigs) {
             setLayout(new BorderLayout());
-            
-            // 创建标签页栏
-            tabBar = new JPanel();
-            tabBar.setLayout(new BoxLayout(tabBar, BoxLayout.X_AXIS));
-            tabBar.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.GRAY),
-                BorderFactory.createEmptyBorder(5, 5, 5, 5)
-            ));
-            
-            // 创建内容区域
-            cardLayout = new CardLayout();
-            contentArea = new JPanel(cardLayout);
-            
-            // 添加按钮
-            JButton addButton = new JButton("+");
+
+            // 頂部操作工具列：清晰美觀的新增與刪除按鈕
+            JPanel toolBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+            JButton addButton = new JButton("+ " + getString("CONFIG_ADD_BTN_LABEL"));
+            JButton deleteButton = new JButton("🗑 " + getString("CONFIG_DELETE_BTN_LABEL"));
+
             addButton.setToolTipText(getString("CONFIG_ADD_TAB_TOOLTIP"));
-            addButton.setPreferredSize(new Dimension(30, 25));
-            addButton.setMaximumSize(new Dimension(30, 25));
+            deleteButton.setToolTipText(getString("CONFIG_CLOSE_TAB_TOOLTIP"));
+
             addButton.addActionListener(e -> addNewTab());
-            
-            tabBar.add(Box.createHorizontalStrut(5));
-            tabBar.add(addButton);
-            tabBar.add(Box.createHorizontalGlue());
-            
-            add(tabBar, BorderLayout.NORTH);
-            add(contentArea, BorderLayout.CENTER);
-            
-            // 添加所有配置标签页
+            deleteButton.addActionListener(e -> deleteCurrentTab());
+
+            toolBar.add(addButton);
+            toolBar.add(deleteButton);
+
+            // 原生 JTabbedPane，啟用 SCROLL_TAB_LAYOUT，標籤過多時出現捲動箭頭，絕不 overlap 或超出滿版
+            tabbedPane = new JTabbedPane(JTabbedPane.TOP, JTabbedPane.SCROLL_TAB_LAYOUT);
+
+            add(toolBar, BorderLayout.NORTH);
+            add(tabbedPane, BorderLayout.CENTER);
+
             if (allConfigs != null && !allConfigs.isEmpty()) {
-                for (int i = 0; i < allConfigs.size(); i++) {
-                    ConfigTabData config = allConfigs.get(i);
-                    addTab(config, false); // 不自动选择标签页
+                for (ConfigTabData config : allConfigs) {
+                    addTab(config, false);
                 }
-                // 最后选择第一个标签页
-                selectTab(0);
+                if (tabbedPane.getTabCount() > 0) {
+                    selectTab(0);
+                }
             } else {
                 addDefaultTab();
             }
         }
-        
+
         private void addDefaultTab() {
             ConfigTabData defaultData = new ConfigTabData(getString("CONFIG_DEFAULT_NAME"));
             addTab(defaultData);
         }
-        
-        // 添加新方法：使用预设数据创建默认标签页
+
         private void addDefaultTabWithData(ConfigTabData data) {
             addTab(data);
         }
-        
+
         private void addNewTab() {
             String newTabName = getString("CONFIG_NAME_PREFIX") + tabCounter++;
             ConfigTabData newData = new ConfigTabData(newTabName);
-            
-            // 如果有选中的标签页，复制其配置作为模板
+
+            int selectedIndex = getSelectedIndex();
             if (selectedIndex >= 0 && selectedIndex < tabs.size()) {
                 ConfigTabData currentData = tabs.get(selectedIndex).data;
                 newData = currentData.copy();
                 newData.name = newTabName;
             }
-            
-            addTab(newData);
+
+            addTab(newData, true);
         }
-        
+
+        private void deleteCurrentTab() {
+            int selectedIndex = getSelectedIndex();
+            if (selectedIndex < 0 || selectedIndex >= tabs.size()) {
+                return;
+            }
+            if (selectedIndex == 0) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        getString("CONFIG_CANNOT_DELETE_DEFAULT"),
+                        getString("CONFIG_DELETE_BTN_LABEL"),
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            ConfigTabInfo tabInfo = tabs.get(selectedIndex);
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    String.format(getString("CONFIG_DELETE_CONFIRM"), tabInfo.data.name),
+                    getString("CONFIG_DELETE_BTN_LABEL"),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE);
+            if (confirm == JOptionPane.YES_OPTION) {
+                removeTab(selectedIndex);
+            }
+        }
+
         public void addTab(ConfigTabData data) {
             addTab(data, true);
         }
-        
+
         public void addTab(ConfigTabData data, boolean autoSelect) {
             ConfigTabInfo tabInfo = new ConfigTabInfo();
             tabInfo.id = "tab_" + System.currentTimeMillis();
             tabInfo.title = data.name;
             tabInfo.data = data;
             tabInfo.panel = new ConfigTabPanel(data);
-            
-            // 创建标签页按钮
-            tabInfo.tabButton = new JButton(data.name);
-            tabInfo.tabButton.setPreferredSize(new Dimension(100, 25));
-            tabInfo.tabButton.setMaximumSize(new Dimension(150, 25));
-            tabInfo.tabButton.addActionListener(e -> selectTab(tabs.indexOf(tabInfo)));
-            
-            // 创建关闭按钮
-            tabInfo.closeButton = new JButton("×");
-            tabInfo.closeButton.setPreferredSize(new Dimension(20, 25));
-            tabInfo.closeButton.setMaximumSize(new Dimension(20, 25));
-            tabInfo.closeButton.setMargin(new Insets(0, 0, 0, 0));
-            tabInfo.closeButton.setBorderPainted(false);
-            tabInfo.closeButton.setContentAreaFilled(false);
-            tabInfo.closeButton.setFocusable(false);
-            tabInfo.closeButton.setToolTipText(getString("CONFIG_CLOSE_TAB_TOOLTIP"));
-            tabInfo.closeButton.addActionListener(e -> removeTab(tabs.indexOf(tabInfo)));
-            
-            // 创建标签页面板
-            JPanel tabPanel = new JPanel();
-            tabPanel.setLayout(new BoxLayout(tabPanel, BoxLayout.X_AXIS));
-            tabPanel.add(tabInfo.tabButton);
-            
-            // 只有多于一个标签页时才显示关闭按钮
-            if (tabs.size() > 0) {
-                tabPanel.add(tabInfo.closeButton);
-                // 为现有标签页添加关闭按钮
-                updateCloseButtonsVisibility();
-            }
-            
-            // 添加到标签页栏（在加号按钮前）
-            tabBar.add(tabPanel, tabBar.getComponentCount() - 2);
-            
-            // 添加到内容区域
-            contentArea.add(tabInfo.panel, tabInfo.id);
-            
+
+            // 每個分頁表單使用專屬的 JScrollPane 進行滾動，消除表單爆版
+            JScrollPane scrollPane = new JScrollPane(tabInfo.panel);
+            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+            scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+            scrollPane.setBorder(BorderFactory.createEmptyBorder());
+            scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+            tabInfo.scrollPane = scrollPane;
+
             tabs.add(tabInfo);
-            
+
+            String displayTitle = data.enabled ? data.name : data.name + getString("CONFIG_DISABLED_SUFFIX");
+            tabbedPane.addTab(displayTitle, scrollPane);
+
             if (autoSelect) {
                 selectTab(tabs.size() - 1);
             }
-            
+
             revalidate();
             repaint();
         }
-        
-        private void updateCloseButtonsVisibility() {
-            boolean showCloseButtons = tabs.size() > 1;
-            for (ConfigTabInfo tabInfo : tabs) {
-                tabInfo.closeButton.setVisible(showCloseButtons);
+
+        public void selectTab(int index) {
+            if (index >= 0 && index < tabbedPane.getTabCount()) {
+                tabbedPane.setSelectedIndex(index);
             }
         }
-        
-        private void selectTab(int index) {
-            if (index >= 0 && index < tabs.size() && index != selectedIndex) {
-                selectedIndex = index;
-                ConfigTabInfo selectedTab = tabs.get(index);
-                cardLayout.show(contentArea, selectedTab.id);
-                
-                // 更新标签页按钮状态
-                for (int i = 0; i < tabs.size(); i++) {
-                    ConfigTabInfo tab = tabs.get(i);
-                    if (i == index) {
-                        tab.tabButton.setBackground(Color.LIGHT_GRAY);
-                        tab.tabButton.setOpaque(true);
-                    } else {
-                        tab.tabButton.setBackground(null);
-                        tab.tabButton.setOpaque(false);
-                    }
-                }
-            }
+
+        public int getSelectedIndex() {
+            return tabbedPane.getSelectedIndex();
         }
-        
-        private void removeTab(int index) {
+
+        public void removeTab(int index) {
             if (index >= 0 && index < tabs.size() && tabs.size() > 1) {
-                ConfigTabInfo tabInfo = tabs.get(index);
-                
-                // 从UI中移除标签页面板
-                for (Component comp : tabBar.getComponents()) {
-                    if (comp instanceof JPanel) {
-                        JPanel panel = (JPanel) comp;
-                        if (panel.getComponentCount() > 0 && 
-                            panel.getComponent(0) == tabInfo.tabButton) {
-                            tabBar.remove(panel);
-                            break;
-                        }
-                    }
-                }
-                
-                contentArea.remove(tabInfo.panel);
                 tabs.remove(index);
-                
-                // 更新关闭按钮可见性
-                updateCloseButtonsVisibility();
-                
-                // 选择相邻标签页
-                if (selectedIndex >= tabs.size()) {
-                    selectTab(tabs.size() - 1);
-                } else if (selectedIndex == index) {
-                    selectTab(Math.max(0, index - 1));
-                } else if (selectedIndex > index) {
-                    selectedIndex--;
-                }
-                
+                tabbedPane.removeTabAt(index);
                 revalidate();
                 repaint();
             }
         }
-        
+
         public List<ConfigTabData> getAllConfigData() {
             List<ConfigTabData> allData = new ArrayList<>();
             for (ConfigTabInfo tab : tabs) {
-                // 从UI组件更新数据
                 tab.panel.updateConfigData();
                 allData.add(tab.data);
             }
             return allData;
         }
-        
+
         public ConfigTabData getCurrentConfigData() {
+            int selectedIndex = getSelectedIndex();
             if (selectedIndex >= 0 && selectedIndex < tabs.size()) {
                 ConfigTabInfo selectedTab = tabs.get(selectedIndex);
                 selectedTab.panel.updateConfigData();
@@ -1579,32 +1544,26 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             }
             return null;
         }
-        
+
         public int getTabCount() {
             return tabs.size();
         }
-        
-        /**
-         * 更新指定面板的标签页标题
-         */
+
         public void updateTabTitle(ConfigTabPanel panel, String newTitle) {
-            for (ConfigTabInfo tab : tabs) {
+            for (int i = 0; i < tabs.size(); i++) {
+                ConfigTabInfo tab = tabs.get(i);
                 if (tab.panel == panel) {
                     tab.title = newTitle;
-                    // 根据启用状态显示不同的标题样式
                     boolean enabled = tab.data.enabled;
                     String displayTitle = enabled ? newTitle : newTitle + getString("CONFIG_DISABLED_SUFFIX");
-                    tab.tabButton.setText(displayTitle);
-                    
-                    // 设置不同的颜色来表示启用状态
-                    if (enabled) {
-                        tab.tabButton.setForeground(Color.BLACK);
-                    } else {
-                        tab.tabButton.setForeground(Color.GRAY);
-                    }
+                    tabbedPane.setTitleAt(i, displayTitle);
                     break;
                 }
             }
+        }
+
+        public JTabbedPane getTabbedPaneComponent() {
+            return tabbedPane;
         }
     }
 
@@ -1613,10 +1572,10 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
     public class ConfigTabPanel extends JPanel {
         private ConfigTabData configData;
         private JPanel credentialsPanel;
-        
+
         // UI组件
-        private JCheckBox enabledCheckBox;    // 新增：启用状态
-        private JTextField configNameField;   // 新增：配置名称
+        private JCheckBox enabledCheckBox; // 新增：启用状态
+        private JTextField configNameField; // 新增：配置名称
         private JTextArea apiKeyField;
         private JTextArea promptField;
         private JTextField urlField;
@@ -1628,22 +1587,22 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         private JCheckBox temporaryCheckBox;
         private JCheckBox cacheCheckBox;
         private JCheckBox glossaryCheckBox;
-        
+
         public ConfigTabPanel(ConfigTabData data) {
             this.configData = data;
             initComponents();
             loadConfigData();
         }
-        
+
         private void initComponents() {
             setLayout(new BorderLayout());
             setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-            
+
             credentialsPanel = new JPanel(new GridBagLayout());
-            
+
             // 创建输入组件
             enabledCheckBox = new JCheckBox(getString("CONFIG_ENABLE_LABEL"), true);
-            
+
             // 添加启用状态变化监听器
             enabledCheckBox.addActionListener(e -> {
                 configData.enabled = enabledCheckBox.isSelected();
@@ -1656,26 +1615,26 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                     ((DynamicTabbedPane) parent).updateTabTitle(ConfigTabPanel.this, configData.name);
                 }
             });
-            
+
             configNameField = new JTextField();
-            
+
             // 添加配置名称变化监听器
             configNameField.getDocument().addDocumentListener(new DocumentListener() {
                 @Override
                 public void insertUpdate(DocumentEvent e) {
                     updateTabTitle();
                 }
-                
+
                 @Override
                 public void removeUpdate(DocumentEvent e) {
                     updateTabTitle();
                 }
-                
+
                 @Override
                 public void changedUpdate(DocumentEvent e) {
                     updateTabTitle();
                 }
-                
+
                 private void updateTabTitle() {
                     SwingUtilities.invokeLater(() -> {
                         String newName = configNameField.getText().trim();
@@ -1693,31 +1652,32 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                     });
                 }
             });
-            apiKeyField = createMultiLineTextArea();
+            apiKeyField = createMultiLineTextArea(2);
             urlField = new JTextField();
-            promptField = createMultiLineTextArea();
+            promptField = createMultiLineTextArea(4);
             temperatureField = new JTextField();
             modelComboBox = new JComboBox<>();
             apiComboBox = new JComboBox<>();
             customModelField = new JTextField();
             useCustomModelCheckBox = new JCheckBox(getString("MT_ENGINE_USE_CUSTOM_MODEL_LABEL"));
             customModelField.setVisible(false);
-            
+
             // 添加复选框事件监听
             useCustomModelCheckBox.addActionListener(e -> {
                 boolean useCustom = useCustomModelCheckBox.isSelected();
                 handleCustomModelToggle(useCustom);
             });
-            
+
             temporaryCheckBox = new JCheckBox();
             cacheCheckBox = new JCheckBox(getString("MT_ENGINE_CACHE_BUTTON"), true);
             glossaryCheckBox = new JCheckBox(getString("MT_ENGINE_GLOSSARY_BUTTON"), true);
-            
+
             // 使用 GridBagLayout 添加组件
             GridBagConstraints gbc = new GridBagConstraints();
-            gbc.insets = new Insets(5, 5, 5, 5);
+            gbc.insets = new Insets(4, 6, 4, 6);
+            gbc.anchor = GridBagConstraints.WEST;
             gbc.fill = GridBagConstraints.HORIZONTAL;
-            
+
             // 首先添加启用状态复选框（放在顶部）
             gbc.gridx = 0;
             gbc.gridy = 0;
@@ -1725,24 +1685,24 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             gbc.weightx = 1.0;
             credentialsPanel.add(enabledCheckBox, gbc);
             gbc.gridwidth = 1; // 重置
-            
+
             // 添加配置名称字段
             addLabelAndField(credentialsPanel, getString("CONFIG_NAME_LABEL"), configNameField, gbc, 1);
-            
+
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_KEY_LABEL", apiKeyField, gbc, 2);
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_URL_LABEL", urlField, gbc, 3);
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_PROMPT_LABEL", promptField, gbc, 4);
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_TEMPERATURE_LABEL", temperatureField, gbc, 5);
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_MODEL_NAME_LABEL", modelComboBox, gbc, 6);
-            
+
             // 在同一位置添加自定义模型输入框，但初始隐藏
             gbc.gridx = 1;
             gbc.gridy = 6;
             gbc.weightx = 1.0;
             credentialsPanel.add(customModelField, gbc);
-            
+
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_API_FORMAT_LABEL", apiComboBox, gbc, 7);
-            
+
             // 添加复选框
             gbc.gridx = 1;
             gbc.gridy = 8;
@@ -1753,13 +1713,21 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             credentialsPanel.add(temporaryCheckBox, gbc);
             gbc.gridy = 11;
             credentialsPanel.add(cacheCheckBox, gbc);
-            
+
+            // 底部彈性空白填充，防止 HiDPI 放大時元件分散居中
+            gbc.gridx = 0;
+            gbc.gridy = 12;
+            gbc.gridwidth = 2;
+            gbc.weighty = 1.0;
+            gbc.fill = GridBagConstraints.BOTH;
+            credentialsPanel.add(Box.createGlue(), gbc);
+
             // 设置复选框文本
             Mnemonics.setLocalizedText(temporaryCheckBox, OStrings.getString("PREFS_CREDENTIAL_TEMPORARY_LABEL"));
-            
+
             add(credentialsPanel, BorderLayout.CENTER);
         }
-        
+
         private void loadConfigData() {
             enabledCheckBox.setSelected(configData.enabled);
             configNameField.setText(configData.name);
@@ -1767,10 +1735,10 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             urlField.setText(configData.apiUrl);
             promptField.setText(configData.prompt);
             temperatureField.setText(configData.temperature);
-            
+
             // 设置模型下拉框
             modelComboBox.setModel(new DefaultComboBoxModel<>(getAllModels()));
-            
+
             if (configData.useCustomModel) {
                 customModelField.setText(configData.customModel);
                 useCustomModelCheckBox.setSelected(true);
@@ -1779,15 +1747,15 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 modelComboBox.setSelectedItem(configData.model);
                 useCustomModelCheckBox.setSelected(false);
             }
-            
+
             apiComboBox.setModel(new DefaultComboBoxModel<>(Providers));
             apiComboBox.setSelectedItem(configData.apiProvider);
-            
+
             cacheCheckBox.setSelected(configData.enableCache);
             glossaryCheckBox.setSelected(configData.enableGlossary);
             temporaryCheckBox.setSelected(configData.temporaryCredential);
         }
-        
+
         public void updateConfigData() {
             configData.enabled = enabledCheckBox.isSelected();
             configData.name = configNameField.getText().trim();
@@ -1795,20 +1763,20 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             configData.apiUrl = urlField.getText().trim();
             configData.prompt = promptField.getText().trim();
             configData.temperature = temperatureField.getText().trim();
-            
+
             configData.useCustomModel = useCustomModelCheckBox.isSelected();
             if (configData.useCustomModel) {
                 configData.customModel = customModelField.getText().trim();
             } else {
                 configData.model = (String) modelComboBox.getSelectedItem();
             }
-            
+
             configData.apiProvider = (String) apiComboBox.getSelectedItem();
             configData.enableCache = cacheCheckBox.isSelected();
             configData.enableGlossary = glossaryCheckBox.isSelected();
             configData.temporaryCredential = temporaryCheckBox.isSelected();
         }
-        
+
         private void handleCustomModelToggle(boolean useCustom) {
             SwingUtilities.invokeLater(() -> {
                 if (useCustom) {
@@ -1826,12 +1794,12 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 credentialsPanel.repaint();
             });
         }
-        
+
         private void updateApiComboBoxForCustom() {
             String[] providersWithoutDefault = {"OpenAI", "Claude", "Gemini", "DeepSeek", "VolcEngine"};
             String currentSelection = (String) apiComboBox.getSelectedItem();
             apiComboBox.setModel(new DefaultComboBoxModel<>(providersWithoutDefault));
-            
+
             // 如果当前选择是 default，自动切换到 OpenAI
             if ("default".equals(currentSelection)) {
                 apiComboBox.setSelectedItem("OpenAI");
@@ -1841,22 +1809,26 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 apiComboBox.setSelectedItem("OpenAI");
             }
         }
-        
+
         private void restoreOriginalApiComboBox() {
             String currentSelection = (String) apiComboBox.getSelectedItem();
             apiComboBox.setModel(new DefaultComboBoxModel<>(Providers));
-            
+
             // 恢复之前的选择，如果仍然有效的话
             if (Arrays.asList(Providers).contains(currentSelection)) {
                 apiComboBox.setSelectedItem(currentSelection);
             }
         }
-        
-        private void addLabelAndField(JPanel panel, String labelKey, JComponent field, GridBagConstraints gbc, int row) {
+
+        private void addLabelAndField(
+                JPanel panel, String labelKey, JComponent field, GridBagConstraints gbc, int row) {
             gbc.gridx = 0;
             gbc.gridy = row;
             gbc.weightx = 0.0;
-            
+            gbc.weighty = 0.0;
+            gbc.anchor = GridBagConstraints.WEST;
+            gbc.fill = GridBagConstraints.NONE;
+
             // 检查是否是资源键还是直接字符串
             String labelText;
             try {
@@ -1865,11 +1837,12 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 // 如果不是资源键，直接使用字符串
                 labelText = labelKey;
             }
-            
+
             panel.add(new JLabel(labelText), gbc);
-            
+
             gbc.gridx = 1;
             gbc.weightx = 1.0;
+            gbc.fill = GridBagConstraints.HORIZONTAL;
             // 如果是 JTextArea，用 JScrollPane 包装
             if (field instanceof JTextArea) {
                 JScrollPane scrollPane = new JScrollPane(field);
@@ -1881,90 +1854,19 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             }
             gbc.weightx = 0.0;
         }
-        
+
         public ConfigTabData getConfigData() {
             updateConfigData();
             return configData;
         }
-        
-        // 创建多行文本区域的私有方法
-        private JTextArea createMultiLineTextArea() {
-            JTextArea textArea = new JTextArea();
+
+        // 创建多行文本区域的方法
+        private JTextArea createMultiLineTextArea(int rows) {
+            JTextArea textArea = new JTextArea(rows, 20);
             textArea.setLineWrap(true);
             textArea.setWrapStyleWord(true);
-
-            // 设置基础参数
-            int minRows = 1;
-            int maxRows = 5;
-            int minWidth = 200;
-            int maxWidth = 400;
-            int padding = 2; // 文本区域内边距
-
-            // 获取字体度量以准确计算文本高度
-            FontMetrics fm = textArea.getFontMetrics(textArea.getFont());
-            int lineHeight = fm.getHeight();
-
-            // 设置初始大小
-            Dimension minSize = new Dimension(minWidth, lineHeight * minRows + 2 * padding);
-            Dimension maxSize = new Dimension(maxWidth, lineHeight * maxRows + 2 * padding);
-
-            textArea.setMinimumSize(minSize);
-            textArea.setMaximumSize(maxSize);
-            textArea.setPreferredSize(minSize);
-
-            textArea.getDocument().addDocumentListener(new DocumentListener() {
-                private void updateSize() {
-                    SwingUtilities.invokeLater(() -> {
-                        try {
-                            // 获取文本区域的实际内容
-                            String text = textArea.getText();
-                            Rectangle viewRect = textArea.getVisibleRect();
-
-                            // 计算需要的行数
-                            int availableWidth = Math.max(minWidth, viewRect.width - 2 * padding);
-                            int textWidth = fm.stringWidth(text);
-                            int estimatedRows = Math.max(
-                                    minRows, Math.min(maxRows, (int) Math.ceil((double) textWidth / availableWidth)));
-
-                            // 计算新的首选高度
-                            int newHeight = lineHeight * estimatedRows + 2 * padding;
-
-                            // 设置新的首选大小
-                            Dimension newSize =
-                                    new Dimension(Math.min(maxWidth, Math.max(minWidth, viewRect.width)), newHeight);
-
-                            if (!textArea.getPreferredSize().equals(newSize)) {
-                                textArea.setPreferredSize(newSize);
-                                textArea.revalidate();
-                            }
-                        } catch (Exception e) {
-                            // 处理可能的异常
-                            LOGGER.error("更新文本区域大小时出错", e);
-                        }
-                    });
-                }
-
-                @Override
-                public void insertUpdate(DocumentEvent e) {
-                    updateSize();
-                }
-
-                @Override
-                public void removeUpdate(DocumentEvent e) {
-                    updateSize();
-                }
-
-                @Override
-                public void changedUpdate(DocumentEvent e) {
-                    updateSize();
-                }
-            });
-
-            // 设置边框和外观
             textArea.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(Color.GRAY),
-                    BorderFactory.createEmptyBorder(padding, padding, padding, padding)));
-
+                    BorderFactory.createLineBorder(Color.GRAY), BorderFactory.createEmptyBorder(3, 4, 3, 4)));
             return textArea;
         }
     }
@@ -1974,7 +1876,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         private DynamicTabbedPane tabbedPane;
         public javax.swing.JButton okButton;
         public javax.swing.JButton cancelButton;
-        
+
         // 兼容性属性，用于向后兼容
         public javax.swing.JTextArea apiKeyField;
         public javax.swing.JTextArea promptField;
@@ -1991,11 +1893,11 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         public OpenAIConfigPanel() {
             initComponents();
         }
-        
+
         public OpenAIConfigPanel(ConfigTabData initialData) {
             initComponents(initialData);
         }
-        
+
         public OpenAIConfigPanel(List<ConfigTabData> allConfigs) {
             initComponents(allConfigs);
         }
@@ -2003,70 +1905,77 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         private void initComponents() {
             initComponents((ConfigTabData) null);
         }
-        
+
         private void initComponents(ConfigTabData initialData) {
             setLayout(new BorderLayout());
-            setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-            
+            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
             // 创建动态标签页组件
             tabbedPane = new DynamicTabbedPane(initialData);
-            
+            tabbedPane.getTabbedPaneComponent().addChangeListener(e -> updateCompatibilityFields());
+
             // 创建按钮面板
             JPanel buttonPanel = createButtonPanel();
-            
+
             // 组装面板
             add(tabbedPane, BorderLayout.CENTER);
             add(buttonPanel, BorderLayout.SOUTH);
-            
+
             // 初始化兼容性属性（指向当前选中的标签页的组件）
             updateCompatibilityFields();
         }
-        
+
         private void initComponents(List<ConfigTabData> allConfigs) {
             setLayout(new BorderLayout());
-            setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-            
+            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
             // 创建动态标签页组件
             tabbedPane = new DynamicTabbedPane(allConfigs);
-            
+            tabbedPane.getTabbedPaneComponent().addChangeListener(e -> updateCompatibilityFields());
+
             // 创建按钮面板
             JPanel buttonPanel = createButtonPanel();
-            
+
             // 组装面板
             add(tabbedPane, BorderLayout.CENTER);
             add(buttonPanel, BorderLayout.SOUTH);
-            
+
             // 初始化兼容性属性（指向当前选中的标签页的组件）
             updateCompatibilityFields();
         }
-        
+
         private JPanel createButtonPanel() {
             JPanel buttonPanel = new JPanel();
             buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
-            
+            buttonPanel.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+
             okButton = new JButton();
             Mnemonics.setLocalizedText(okButton, OStrings.getString("BUTTON_OK"));
-            
+
             cancelButton = new JButton();
             Mnemonics.setLocalizedText(cancelButton, OStrings.getString("BUTTON_CANCEL"));
-            
+
             buttonPanel.add(Box.createHorizontalGlue());
             buttonPanel.add(okButton);
-            buttonPanel.add(Box.createRigidArea(new Dimension(5, 0)));
+            buttonPanel.add(Box.createRigidArea(new Dimension(8, 0)));
             buttonPanel.add(cancelButton);
-            
+
             return buttonPanel;
         }
-        
+
         /**
          * 更新兼容性属性，使其指向当前选中的标签页的组件
          * 这样可以保持与现有代码的兼容性
          */
         private void updateCompatibilityFields() {
             if (tabbedPane.getTabCount() > 0) {
-                DynamicTabbedPane.ConfigTabInfo currentTab = tabbedPane.tabs.get(tabbedPane.selectedIndex >= 0 ? tabbedPane.selectedIndex : 0);
+                int sel = tabbedPane.getSelectedIndex();
+                if (sel < 0 || sel >= tabbedPane.tabs.size()) {
+                    sel = 0;
+                }
+                DynamicTabbedPane.ConfigTabInfo currentTab = tabbedPane.tabs.get(sel);
                 ConfigTabPanel currentPanel = currentTab.panel;
-                
+
                 // 更新兼容性属性引用
                 this.apiKeyField = currentPanel.apiKeyField;
                 this.promptField = currentPanel.promptField;
@@ -2081,7 +1990,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 this.glossaryCheckBox = currentPanel.glossaryCheckBox;
             }
         }
-        
+
         /**
          * 获取当前选中的配置数据
          */
@@ -2089,14 +1998,14 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             updateCompatibilityFields(); // 确保引用是最新的
             return tabbedPane.getCurrentConfigData();
         }
-        
+
         /**
          * 获取所有标签页的配置数据
          */
         public List<ConfigTabData> getAllConfigData() {
             return tabbedPane.getAllConfigData();
         }
-        
+
         /**
          * 加载配置数据到首个标签页（保持兼容性）
          */
@@ -2108,93 +2017,12 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 updateCompatibilityFields();
             }
         }
-        
+
         /**
          * 获取动态标签页组件
          */
         public DynamicTabbedPane getTabbedPane() {
             return tabbedPane;
-        }
-
-        // 为 ConfigTabPanel 提供的公共方法
-        private JTextArea createMultiLineTextArea() {
-            JTextArea textArea = new JTextArea();
-            textArea.setLineWrap(true);
-            textArea.setWrapStyleWord(true);
-
-            // 设置基础参数
-            int minRows = 1;
-            int maxRows = 5;
-            int minWidth = 200;
-            int maxWidth = 400;
-            int padding = 2; // 文本区域内边距
-
-            // 获取字体度量以准确计算文本高度
-            FontMetrics fm = textArea.getFontMetrics(textArea.getFont());
-            int lineHeight = fm.getHeight();
-
-            // 设置初始大小
-            Dimension minSize = new Dimension(minWidth, lineHeight * minRows + 2 * padding);
-            Dimension maxSize = new Dimension(maxWidth, lineHeight * maxRows + 2 * padding);
-
-            textArea.setMinimumSize(minSize);
-            textArea.setMaximumSize(maxSize);
-            textArea.setPreferredSize(minSize);
-
-            textArea.getDocument().addDocumentListener(new DocumentListener() {
-                private void updateSize() {
-                    SwingUtilities.invokeLater(() -> {
-                        try {
-                            // 获取文本区域的实际内容
-                            String text = textArea.getText();
-                            Rectangle viewRect = textArea.getVisibleRect();
-
-                            // 计算需要的行数
-                            int availableWidth = Math.max(minWidth, viewRect.width - 2 * padding);
-                            int textWidth = fm.stringWidth(text);
-                            int estimatedRows = Math.max(
-                                    minRows, Math.min(maxRows, (int) Math.ceil((double) textWidth / availableWidth)));
-
-                            // 计算新的首选高度
-                            int newHeight = lineHeight * estimatedRows + 2 * padding;
-
-                            // 设置新的首选大小
-                            Dimension newSize =
-                                    new Dimension(Math.min(maxWidth, Math.max(minWidth, viewRect.width)), newHeight);
-
-                            if (!textArea.getPreferredSize().equals(newSize)) {
-                                textArea.setPreferredSize(newSize);
-                                textArea.revalidate();
-                            }
-                        } catch (Exception e) {
-                            // 处理可能的异常
-                            LOGGER.error("更新文本区域大小时出错", e);
-                        }
-                    });
-                }
-
-                @Override
-                public void insertUpdate(DocumentEvent e) {
-                    updateSize();
-                }
-
-                @Override
-                public void removeUpdate(DocumentEvent e) {
-                    updateSize();
-                }
-
-                @Override
-                public void changedUpdate(DocumentEvent e) {
-                    updateSize();
-                }
-            });
-
-            // 设置边框和外观
-            textArea.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(Color.GRAY),
-                    BorderFactory.createEmptyBorder(padding, padding, padding, padding)));
-
-            return textArea;
         }
     }
 
@@ -2207,24 +2035,24 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             panel = new OpenAIConfigPanel();
             initDialog();
         }
-        
+
         public OpenAIConfigDialog(Window parent, String title, ConfigTabData initialData) {
             dialog = new JDialog(parent, title, Dialog.ModalityType.APPLICATION_MODAL);
             panel = new OpenAIConfigPanel(initialData);
             initDialog();
         }
-        
+
         public OpenAIConfigDialog(Window parent, String title, List<ConfigTabData> allConfigs) {
             dialog = new JDialog(parent, title, Dialog.ModalityType.APPLICATION_MODAL);
             panel = new OpenAIConfigPanel(allConfigs);
             initDialog();
         }
-        
-        private void initDialog() {
-            JScrollPane scrollPane = new JScrollPane(panel);
-            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 
-            dialog.getContentPane().add(scrollPane);
+        private void initDialog() {
+            // 直接將 panel 置於 dialog 的 CENTER，panel 內部上方為 JTabbedPane，下方常駐 OK/Cancel 按鈕列
+            // 絕不可將整個 panel 包進外層 JScrollPane，否則 HiDPI 放大時按鈕會被擠出可視區域
+            dialog.getContentPane().setLayout(new BorderLayout());
+            dialog.getContentPane().add(panel, BorderLayout.CENTER);
 
             panel.cancelButton.addActionListener(e -> dialog.dispose());
             panel.okButton.addActionListener(e -> {
@@ -2241,7 +2069,9 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         }
 
         public void show() {
-            dialog.setPreferredSize(new Dimension(600, 500));
+            dialog.setPreferredSize(new Dimension(680, 640));
+            dialog.setMinimumSize(new Dimension(560, 480));
+            dialog.setResizable(true);
             dialog.pack();
             dialog.setLocationRelativeTo(dialog.getOwner());
             dialog.setVisible(true);
@@ -2264,14 +2094,14 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             @Override
             protected void onConfirm() {
                 OpenAIConfigPanel panel = getPanel();
-                
+
                 // 获取所有配置数据
                 List<ConfigTabData> allConfigs = panel.getAllConfigData();
                 if (allConfigs == null || allConfigs.isEmpty()) {
                     LOGGER.warn("无法获取配置数据");
                     return;
                 }
-                
+
                 // 保存所有配置
                 saveAllConfigurations(allConfigs);
             }
@@ -2284,10 +2114,10 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         String[] combinedModels = new String[openaiModels.length + geminiModels.length + claudeModels.length];
         System.arraycopy(openaiModels, 0, combinedModels, 0, openaiModels.length);
         System.arraycopy(geminiModels, 0, combinedModels, openaiModels.length, geminiModels.length);
-        System.arraycopy(claudeModels, 0, combinedModels, openaiModels.length + geminiModels.length, claudeModels.length);
+        System.arraycopy(
+                claudeModels, 0, combinedModels, openaiModels.length + geminiModels.length, claudeModels.length);
         return combinedModels;
     }
-    
 
     private String truncateOrPad(String text, int length) {
         if (text == null) {
