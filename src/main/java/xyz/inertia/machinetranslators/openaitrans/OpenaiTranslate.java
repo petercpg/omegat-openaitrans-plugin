@@ -103,7 +103,24 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
         "claude-3-5-haiku-20241022",
         "claude-3-haiku-20240307"
     };
-    protected static final String[] Providers = {"default", "OpenAI", "Claude", "DeepSeek", "VolcEngine"};
+    protected static final String[] geminiModels = {
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-pro",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-2.0-pro-exp-02-05",
+        "gemini-2.0-flash-thinking-exp-01-21",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b"
+    };
+    protected static final String[] Providers = {"default", "OpenAI", "Claude", "Gemini", "DeepSeek", "VolcEngine"};
 
     // 基础配置常量
     protected static final String PROPERTY_API_KEY = "openai.api.Key";
@@ -314,6 +331,116 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
                         result = "error: " + error;
                     }
                 }
+            } else if ("Gemini".equals(provider)) {
+                // 构建 Gemini 原生请求体
+                Map<String, Object> bodyMap = new HashMap<>();
+
+                // system_instruction (若有 prompt)
+                if (prompt != null && !prompt.trim().isEmpty()) {
+                    Map<String, String> systemPart = new HashMap<>();
+                    systemPart.put("text", prompt);
+                    Map<String, Object> systemInstruction = new HashMap<>();
+                    systemInstruction.put("parts", Arrays.asList(systemPart));
+                    bodyMap.put("system_instruction", systemInstruction);
+                }
+
+                // contents (待翻译文本)
+                Map<String, String> userPart = new HashMap<>();
+                userPart.put("text", text);
+                Map<String, Object> userContent = new HashMap<>();
+                userContent.put("role", "user");
+                userContent.put("parts", Arrays.asList(userPart));
+                bodyMap.put("contents", Arrays.asList(userContent));
+
+                // generationConfig
+                Map<String, Object> generationConfig = new HashMap<>();
+                generationConfig.put("temperature", temperature);
+                bodyMap.put("generationConfig", generationConfig);
+
+                LOGGER.info("bodyMap = {}", bodyMap);
+                String bodyStr = objectMapper.writeValueAsString(bodyMap);
+                LOGGER.debug("bodyStr = {}", bodyStr);
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("x-goog-api-key", apiKey.trim())
+                        .header("Content-Type", "application/json")
+                        .timeout(Duration.ofSeconds(60))
+                        .POST(HttpRequest.BodyPublishers.ofString(bodyStr))
+                        .build();
+
+                try {
+                    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                } catch (Exception e) {
+                    LOGGER.error("HTTP请求失败: {}", e.getMessage());
+                    if (e.getCause() instanceof javax.net.ssl.SSLHandshakeException) {
+                        LOGGER.error("SSL握手失败: {}", e.getMessage());
+                        return getString("MT_ENGINE_OPENAI_SSL_ERROR");
+                    } else if (e.getCause() instanceof java.net.SocketException) {
+                        LOGGER.error("网络连接错误: {}", e.getMessage());
+                        return getString("MT_ENGINE_OPENAI_NETWORK_ERROR");
+                    } else {
+                        return String.format(getString("MT_ENGINE_OPENAI_REQUEST_ERROR"), e.getMessage());
+                    }
+                }
+
+                final String responseBody = response.body();
+                LOGGER.debug("response body = {}", responseBody);
+
+                JsonNode jsonNode = objectMapper.readTree(responseBody);
+                JsonNode errorNode = jsonNode.get("error");
+                LOGGER.debug("response jsonobject error_code = {}", errorNode != null ? "has error" : "no error_code");
+                if (errorNode == null) {
+                    JsonNode candidatesArray = jsonNode.get("candidates");
+                    if (candidatesArray != null && candidatesArray.isArray() && candidatesArray.size() > 0) {
+                        JsonNode candidate = candidatesArray.get(0);
+                        JsonNode contentNode = candidate.get("content");
+                        if (contentNode != null) {
+                            JsonNode partsArray = contentNode.get("parts");
+                            if (partsArray != null && partsArray.isArray() && partsArray.size() > 0) {
+                                JsonNode textNode = null;
+                                for (int i = partsArray.size() - 1; i >= 0; i--) {
+                                    JsonNode part = partsArray.get(i);
+                                    JsonNode isThought = part.get("thought");
+                                    if (isThought == null || !isThought.asBoolean()) {
+                                        if (part.has("text")) {
+                                            textNode = part.get("text");
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (textNode == null) {
+                                    textNode = partsArray.get(partsArray.size() - 1).get("text");
+                                }
+                                result = textNode != null ? textNode.asText() : "[cannot get output]";
+                                putToCache(sLang, tLang, text, result);
+                            } else {
+                                result = "[cannot get output]";
+                            }
+                        } else {
+                            JsonNode finishReason = candidate.get("finishReason");
+                            if (finishReason != null && "SAFETY".equalsIgnoreCase(finishReason.asText())) {
+                                result = getString("MT_ENGINE_GEMINI_SAFETY_BLOCKED");
+                            } else {
+                                result = "[cannot get output]";
+                            }
+                        }
+                    } else {
+                        result = "[cannot get output]";
+                    }
+                } else {
+                    String error;
+                    if (errorNode.isObject() && errorNode.has("message")) {
+                        error = errorNode.get("message").asText();
+                    } else {
+                        error = errorNode.asText();
+                    }
+                    if (error == null || error.isEmpty()) {
+                        result = "error code null，no description";
+                    } else {
+                        result = "error: " + error;
+                    }
+                }
             }
 
             return result;
@@ -396,10 +523,6 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
             return getString("MT_ENGINE_OPENAI_API_KEY_NOTFOUND");
         }
 
-        if (url.isEmpty()) {
-            return getString("MT_ENGINE_OPENAI_API_URL_NOTFOUND");
-        }
-
         // 处理自定义模型
         boolean useCustomModel = Boolean.parseBoolean(Preferences.getPreference(getConfigKey(PROPERTY_USE_CUSTOM_MODEL)));
         if (useCustomModel) {
@@ -412,13 +535,24 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
         } else {
             List<String> openaiModelsList = Arrays.asList(openaiModels);
             List<String> claudeModelsList = Arrays.asList(claudeModels);
+            List<String> geminiModelsList = Arrays.asList(geminiModels);
 
             if (openaiModelsList.contains(model)) {
                 provider = ("default".equals(provider) || "DeepSeek".equals(provider)) ? "OpenAI" : provider;
             } else if (claudeModelsList.contains(model)) {
                 provider = ("default".equals(provider)) ? "Claude" : provider;
+            } else if (geminiModelsList.contains(model)) {
+                provider = ("default".equals(provider)) ? "Gemini" : provider;
             } else {
                 return "An unsupported model was used!";
+            }
+        }
+
+        if (url == null || url.trim().isEmpty()) {
+            if ("Gemini".equals(provider)) {
+                url = "https://generativelanguage.googleapis.com";
+            } else {
+                return getString("MT_ENGINE_OPENAI_API_URL_NOTFOUND");
             }
         }
 
@@ -428,6 +562,8 @@ class ConfigurableOpenaiTranslate extends BaseOpenaiTranslate {
             url += "/v1/messages";
         } else if ("VolcEngine".equals(provider)) {
             url += "/api/v3/chat/completions";
+        } else if ("Gemini".equals(provider)) {
+            url = url.replaceAll("/+$", "") + "/v1beta/models/" + model + ":generateContent";
         }
 
         String lvSourceLang = sLang.getLanguage();
@@ -523,10 +659,6 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             return getString("MT_ENGINE_OPENAI_API_KEY_NOTFOUND");
         }
 
-        if (url.isEmpty()) {
-            return getString("MT_ENGINE_OPENAI_API_URL_NOTFOUND");
-        }
-
         // 处理自定义模型
         boolean useCustomModel = Boolean.parseBoolean(Preferences.getPreference(getConfigKey(PROPERTY_USE_CUSTOM_MODEL)));
         if (useCustomModel) {
@@ -539,13 +671,24 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         } else {
             List<String> openaiModelsList = Arrays.asList(openaiModels);
             List<String> claudeModelsList = Arrays.asList(claudeModels);
+            List<String> geminiModelsList = Arrays.asList(geminiModels);
 
             if (openaiModelsList.contains(model)) {
                 provider = ("default".equals(provider) || "DeepSeek".equals(provider)) ? "OpenAI" : provider;
             } else if (claudeModelsList.contains(model)) {
                 provider = ("default".equals(provider)) ? "Claude" : provider;
+            } else if (geminiModelsList.contains(model)) {
+                provider = ("default".equals(provider)) ? "Gemini" : provider;
             } else {
                 return "An unsupported model was used!";
+            }
+        }
+
+        if (url == null || url.trim().isEmpty()) {
+            if ("Gemini".equals(provider)) {
+                url = "https://generativelanguage.googleapis.com";
+            } else {
+                return getString("MT_ENGINE_OPENAI_API_URL_NOTFOUND");
             }
         }
 
@@ -555,6 +698,8 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             url += "/v1/messages";
         } else if ("VolcEngine".equals(provider)) {
             url += "/api/v3/chat/completions";
+        } else if ("Gemini".equals(provider)) {
+            url = url.replaceAll("/+$", "") + "/v1beta/models/" + model + ":generateContent";
         }
 
         String lvSourceLang = sLang.getLanguage();
@@ -1683,7 +1828,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         }
         
         private void updateApiComboBoxForCustom() {
-            String[] providersWithoutDefault = {"OpenAI", "Claude", "DeepSeek", "VolcEngine"};
+            String[] providersWithoutDefault = {"OpenAI", "Claude", "Gemini", "DeepSeek", "VolcEngine"};
             String currentSelection = (String) apiComboBox.getSelectedItem();
             apiComboBox.setModel(new DefaultComboBoxModel<>(providersWithoutDefault));
             
@@ -2136,9 +2281,10 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
     }
 
     private String[] getAllModels() {
-        String[] combinedModels = new String[openaiModels.length + claudeModels.length];
+        String[] combinedModels = new String[openaiModels.length + geminiModels.length + claudeModels.length];
         System.arraycopy(openaiModels, 0, combinedModels, 0, openaiModels.length);
-        System.arraycopy(claudeModels, 0, combinedModels, openaiModels.length, claudeModels.length);
+        System.arraycopy(geminiModels, 0, combinedModels, openaiModels.length, geminiModels.length);
+        System.arraycopy(claudeModels, 0, combinedModels, openaiModels.length + geminiModels.length, claudeModels.length);
         return combinedModels;
     }
     

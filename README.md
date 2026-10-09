@@ -1,21 +1,21 @@
 # OmegaT OpenAI Translation Plugin
 [简体中文](https://github.com/inertia42/omegat-openaitrans-plugin/blob/master/README_CN.md) | English
 
-A plugin that calls OpenAI and Claude APIs for translation with the following features:
-* Support for multiple models
-* Customizable API URL
+A plugin that calls OpenAI, Claude, and Google Gemini APIs for translation with the following features:
+* Support for multiple models (OpenAI, Claude, Gemini, DeepSeek)
+* Customizable API URL (supports custom proxies and official endpoints)
 * Customizable prompts
 * Adjustable temperature parameter
 * Glossary integration
 
 ## Usage
-> Using OpenAI or Claude API requires an `API KEY`. This project does not provide API keys.
+> Using OpenAI, Claude, or Gemini API requires an `API KEY`. This project does not provide API keys.
 1. Download the jar file from releases and place it in the OmegaT plugins directory. This directory should be in the plugins folder under your OmegaT installation directory by default.
 2. (Required) Open OmegaT, go to Options - Preferences - Machine Translation, select Openai Translator, click Configure, and enter your apikey.
-3. (Required) Enter the corresponding URL in the `URL` field.
+3. (Required) Enter the corresponding URL in the `URL` field (for Gemini, leave empty or use `https://generativelanguage.googleapis.com`).
 4. (Optional) Enter a custom prompt in the `Prompt` field. If not needed, leave it empty. If you choose to customize, language auto-detection will be disabled, and you'll need to specify the target language in your prompt. If left empty, the default prompt will be used with automatic target language setting.
 5. (Optional) Modify the `temperature` parameter, default is 0.
-6. (Optional) Modify the `API format`. Some service providers use OpenAI's API format for Claude models. If you don't understand this option, please don't change the default setting. It will automatically determine the API format based on the selected model. Default is set to 'default'.
+6. (Optional) Modify the `API format`. Some service providers use OpenAI's API format for Claude/Gemini models. If you don't understand this option, please don't change the default setting. It will automatically determine the API format based on the selected model. Default is set to 'default'.
 7. Select the model you want to use from the dropdown list, or check the `Use Custom Model` checkbox to enter a custom model name manually. This allows you to use models not listed in the dropdown.
 8. (Optional) Enable the glossary feature. When enabled, matching glossary terms for the current segment will be sent to the API along with the text.
 9. (Optional) Enable caching. When enabled, previously translated results will be searched first. Cache is cleared when the project is closed.
@@ -26,6 +26,21 @@ The following models are currently supported:
 
 | Model Name          | Provider |
 |--------------------|----------|
+| gemini-3.8-flash   | Gemini   |
+| gemini-3.7-flash   | Gemini   |
+| gemini-3.6-flash   | Gemini   |
+| gemini-3.5-flash-lite | Gemini |
+| gemini-3.1-pro     | Gemini   |
+| gemini-2.5-pro     | Gemini   |
+| gemini-2.5-flash   | Gemini   |
+| gemini-2.5-flash-lite | Gemini |
+| gemini-2.0-flash   | Gemini   |
+| gemini-2.0-flash-lite | Gemini |
+| gemini-2.0-pro-exp-02-05 | Gemini |
+| gemini-2.0-flash-thinking-exp-01-21 | Gemini |
+| gemini-1.5-pro     | Gemini   |
+| gemini-1.5-flash   | Gemini   |
+| gemini-1.5-flash-8b | Gemini  |
 | gpt-5              | OpenAI   |
 | gpt-5-mini         | OpenAI   |
 | gpt-5-nano         | OpenAI   |
