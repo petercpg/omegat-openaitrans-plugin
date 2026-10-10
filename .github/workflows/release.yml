@@ -126,12 +126,14 @@ jobs:
           git tag "${{ steps.vars.outputs.tag }}"
           git push origin "${{ steps.vars.outputs.tag }}"
 
-      - name: Set up JDK 11
+      - name: Set up JDK
         if: steps.vars.outputs.skip != 'true'
         uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: |
+            21
+            11
           cache: 'gradle'
 
       - name: Grant execute permission for gradlew

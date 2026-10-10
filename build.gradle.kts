@@ -13,17 +13,22 @@ plugins {
 }
 
 val dotgit = project.file(".git")
+val isJava17OrHigher = JavaVersion.current() >= JavaVersion.VERSION_17
 if (project.hasProperty("customVersion")) {
     version = (project.property("customVersion") as String).trim().removePrefix("v")
-} else if (dotgit.exists()) {
+} else if (dotgit.exists() && isJava17OrHigher) {
     apply(plugin = "com.palantir.git-version")
-    val versionDetails: groovy.lang.Closure<com.palantir.gradle.gitversion.VersionDetails> by extra
-    val details = versionDetails()
-    val rawTag = details.lastTag
-    val baseVersion = if (rawTag.startsWith("v")) rawTag.substring(1) else rawTag
-    version = when {
-        details.isCleanTag -> baseVersion
-        else -> baseVersion
+    val versionDetails: groovy.lang.Closure<*> by extra
+    val details = versionDetails.call()
+    val lastTag = details.javaClass.getMethod("getLastTag").invoke(details) as? String ?: "v0.1.0"
+    version = if (lastTag.startsWith("v")) lastTag.substring(1) else lastTag
+} else if (dotgit.exists()) {
+    try {
+        val p = ProcessBuilder("git", "describe", "--tags", "--always").start()
+        val desc = p.inputStream.bufferedReader().readText().trim()
+        version = if (desc.isNotEmpty()) desc.removePrefix("v") else "0.1.0-SNAPSHOT"
+    } catch (_: Throwable) {
+        version = "0.1.0-SNAPSHOT"
     }
 } else {
     val gitArchival = project.file(".git-archival.properties")
@@ -44,9 +49,12 @@ omegat {
 }
 
 java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(11))
-    }
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
 }
 
 dependencies {
