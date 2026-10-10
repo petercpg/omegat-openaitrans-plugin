@@ -152,7 +152,7 @@ jobs:
 
       - name: Attest Build Provenance
         if: steps.vars.outputs.skip != 'true'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'build/libs/*.jar'
 
