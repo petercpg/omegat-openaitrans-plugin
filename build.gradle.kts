@@ -9,7 +9,7 @@ plugins {
     id("org.gradle.crypto.checksum") version "1.4.0"
     id("com.diffplug.spotless") version "6.12.0"
     id("org.omegat.gradle") version "2.0.0-rc2"
-    id("com.palantir.git-version") version "3.0.0" apply false
+    id("com.palantir.git-version") version "5.1.0" apply false
 }
 
 val dotgit = project.file(".git")
@@ -20,7 +20,11 @@ if (project.hasProperty("customVersion")) {
     apply(plugin = "com.palantir.git-version")
     val versionDetails: groovy.lang.Closure<*> by extra
     val details = versionDetails.call()
-    val lastTag = details.javaClass.getMethod("getLastTag").invoke(details) as? String ?: "v0.1.0"
+    val lastTagMethod = details.javaClass.interfaces
+        .firstOrNull { it.simpleName == "VersionDetails" }
+        ?.getMethod("getLastTag")
+        ?: details.javaClass.getMethod("getLastTag")
+    val lastTag = lastTagMethod.invoke(details) as? String ?: "v0.1.0"
     version = if (lastTag.startsWith("v")) lastTag.substring(1) else lastTag
 } else if (dotgit.exists()) {
     try {
