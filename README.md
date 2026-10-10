@@ -1,5 +1,5 @@
 # AI LLM Translate Plugin for OmegaT
-[简体中文](https://github.com/inertia42/omegat-openaitrans-plugin/blob/master/README_CN.md) | English
+English | [正體中文](README_zh_TW.md) | [简体中文](README_CN.md)
 
 A plugin that calls OpenAI, Claude, and Google Gemini APIs for translation with the following features:
 * Support for multiple models (OpenAI, Claude, Gemini, DeepSeek)
@@ -16,13 +16,14 @@ A plugin that calls OpenAI, Claude, and Google Gemini APIs for translation with 
 1. Download the jar file from releases and place it in the OmegaT plugins directory. This directory should be in the plugins folder under your OmegaT installation directory by default.
 2. (Required) Open OmegaT, go to Options - Preferences - Machine Translation, select AI LLM Translate, click Configure, and enter your apikey.
 3. (Required) Enter the corresponding URL in the `URL` field (for Gemini, leave empty or use `https://generativelanguage.googleapis.com`).
-4. (Optional) Enter a custom prompt in the `Prompt` field. If not needed, leave it empty. If you choose to customize, language auto-detection will be disabled, and you'll need to specify the target language in your prompt. If left empty, the default prompt will be used with automatic target language setting.
-5. (Optional) Modify the `temperature` parameter, default is 0.
-6. (Optional) Modify the `API format`. Some service providers use OpenAI's API format for Claude/Gemini models. If you don't understand this option, please don't change the default setting. It will automatically determine the API format based on the selected model. Default is set to 'default'.
-7. Select the model you want to use from the dropdown list, or check the `Use Custom Model` checkbox to enter a custom model name manually. This allows you to use models not listed in the dropdown.
-8. (Optional) Enable the glossary feature. When enabled, matching glossary terms for the current segment will be sent to the API along with the text.
-9. (Optional) Enable caching. When enabled, previously translated results will be searched first. Cache is cleared when the project is closed.
-10. Finally, check Enable, click OK and close the preferences window.
+4. (Optional) Enter a custom system prompt in the `System Prompt` field. If not needed, leave it empty to use the built-in CAT tag-preserving prompt with automatic language detection.
+5. (Optional) Enter custom additional guidelines in the `User Prompt` field. Content here is appended after the System Prompt (e.g. style, locale conventions, tone) without affecting the built-in tag preservation rules.
+6. (Optional) Modify the `temperature` parameter, default is 0.
+7. (Optional) Modify the `API format`. Some service providers use OpenAI's API format for Claude/Gemini models. If you don't understand this option, please don't change the default setting. It will automatically determine the API format based on the selected model. Default is set to 'default'.
+8. Select the model you want to use from the dropdown list, or check the `Use Custom Model` checkbox to enter a custom model name manually. This allows you to use models not listed in the dropdown.
+9. (Optional) Enable the glossary feature. When enabled, matching glossary terms for the current segment will be sent to the API along with the text.
+10. (Optional) Enable caching. When enabled, previously translated results will be searched first. Cache is cleared when the project is closed.
+11. Finally, check Enable, click OK and close the preferences window.
 
 ## Custom Model Support
 If you need to use a model that's not listed in the dropdown, you can use the `Use Custom Model` feature:
