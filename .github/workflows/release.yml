@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     branches:
-      - master
+      - release
     tags:
       - 'v*'
   workflow_dispatch:
@@ -169,7 +169,9 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: ${{ steps.vars.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: |
             build/libs/*.jar
             build/libs/sbom.spdx.json
           generate_release_notes: true
+
