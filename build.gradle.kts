@@ -51,18 +51,20 @@ dependencies {
     compileOnly("org.omegat:omegat:${omegat.version.get()}")
 
     // Uber JAR
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.1")
-    packIntoJar("net.bytebuddy:byte-buddy:1.14.17")
+    val jacksonVersion = "2.17.2"
+    implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
+    packIntoJar("com.fasterxml.jackson.core:jackson-core:$jacksonVersion")
+    packIntoJar("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
+    packIntoJar("com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion")
+    packIntoJar("net.bytebuddy:byte-buddy:1.14.18")
 
     // Annotations
     compileOnly("org.jetbrains:annotations:24.1.0")
-    packIntoJar("org.slf4j:slf4j-api:2.0.7")
+    packIntoJar("org.slf4j:slf4j-api:2.0.13")
     implementation("org.netbeans.api:org-openide-awt:RELEASE130") 
-    implementation("commons-io:commons-io:2.7")
+    implementation("commons-io:commons-io:2.16.1")
     implementation("commons-lang:commons-lang:2.6")
-    packIntoJar("com.fasterxml.jackson.core:jackson-core:2.15.2")
-    packIntoJar("com.fasterxml.jackson.core:jackson-databind:2.15.2")
-    testImplementation("junit:junit:4.13")
+    testImplementation("junit:junit:4.13.2")
 }
 
 distributions {
