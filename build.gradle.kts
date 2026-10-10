@@ -73,7 +73,7 @@ dependencies {
 distributions {
     main {
         contents {
-            from(tasks["jar"], "README.md", "COPYING", "CHANGELOG.md")
+            from(tasks["jar"], "README.md", "README_zh_TW.md", "README_CN.md", "LICENSE")
         }
     }
 }
