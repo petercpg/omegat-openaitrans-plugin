@@ -76,7 +76,7 @@ dependencies {
     // Annotations
     compileOnly("org.jetbrains:annotations:26.1.0")
     packIntoJar("org.slf4j:slf4j-api:2.0.20")
-    implementation("org.netbeans.api:org-openide-awt:RELEASE130") 
+    implementation("org.netbeans.api:org-openide-awt:RELEASE280")
     implementation("commons-io:commons-io:2.22.0")
     implementation("commons-lang:commons-lang:2.6")
     testImplementation("junit:junit:4.13.2")
