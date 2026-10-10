@@ -158,7 +158,7 @@ jobs:
 
       - name: Attest SBOM
         if: steps.vars.outputs.skip != 'true'
-        uses: actions/attest-sbom@v2
+        uses: actions/attest-sbom@v4
         with:
           subject-path: 'build/libs/*.jar'
           sbom-path: 'build/libs/sbom.spdx.json'
