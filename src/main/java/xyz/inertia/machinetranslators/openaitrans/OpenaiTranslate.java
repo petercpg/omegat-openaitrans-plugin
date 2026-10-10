@@ -18,6 +18,9 @@
 package xyz.inertia.machinetranslators.openaitrans;
 
 import org.omegat.core.Core;
+import org.omegat.core.CoreEvents;
+import org.omegat.core.events.IApplicationEventListener;
+import org.omegat.core.events.IProjectEventListener;
 import org.omegat.core.machinetranslators.BaseCachedTranslate;
 import org.omegat.gui.exttrans.IMachineTranslation;
 import org.omegat.util.CredentialsManager;
@@ -129,6 +132,7 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
     protected static final String PROPERTY_USE_CUSTOM_MODEL = "openai.api.use.custom.model";
     protected static final String PROPERTY_API_PROVIDER = "openai.api.format";
     protected static final String PROPERTY_API_PROMPT = "openai.api.prompt";
+    protected static final String PROPERTY_API_USER_PROMPT = "openai.api.user.prompt";
     protected static final String PROPERTY_API_TEMPERATURE = "openai.api.temperature";
     protected static final String PROPERTY_API_CACHE = "openai.api.enable.cache";
     protected static final String PROPERTY_API_GLOSSARY = "openai.api.enable.glossary";
@@ -478,6 +482,7 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
         }
         String provider = Preferences.getPreference(getConfigKey(PROPERTY_API_PROVIDER));
         String prompt = Preferences.getPreference(getConfigKey(PROPERTY_API_PROMPT));
+        String userPrompt = Preferences.getPreference(getConfigKey(PROPERTY_API_USER_PROMPT));
         String enableCache = Preferences.getPreference(getConfigKey(PROPERTY_API_CACHE));
         String enableGlossary = Preferences.getPreference(getConfigKey(PROPERTY_API_GLOSSARY));
 
@@ -547,6 +552,13 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
                 lvSourceLang, lvTargetLang);
         prompt = resolvePrompt(prompt, defaultPrompt, lvSourceLang, lvTargetLang);
 
+        if (userPrompt != null && !userPrompt.trim().isEmpty()) {
+            String resolvedUserPrompt = resolvePrompt(userPrompt, "", lvSourceLang, lvTargetLang);
+            if (!resolvedUserPrompt.trim().isEmpty()) {
+                prompt = prompt + "\n\nADDITIONAL INSTRUCTIONS:\n" + resolvedUserPrompt.trim();
+            }
+        }
+
         String lvShortText = text.length() > 5000 ? text.substring(0, 4997) + "\u2026" : text;
         String prev = getCachedTranslation(sLang, tLang, lvShortText);
         if (prev != null && "true".equals(enableCache)) {
@@ -568,6 +580,7 @@ abstract class BaseOpenaiTranslate extends BaseCachedTranslate implements IMachi
             }
         }
 
+        TagAwareHTMLEditorKit.install();
         return executeTranslationRequest(url, apiKey, model, temperature, prompt, lvShortText, provider, sLang, tLang);
     }
 
@@ -649,6 +662,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
     protected static final String PROPERTY_USE_CUSTOM_MODEL_TEMPLATE = "openai.%s.api.use.custom.model";
     protected static final String PROPERTY_API_PROVIDER_TEMPLATE = "openai.%s.api.format";
     protected static final String PROPERTY_API_PROMPT_TEMPLATE = "openai.%s.api.prompt";
+    protected static final String PROPERTY_API_USER_PROMPT_TEMPLATE = "openai.%s.api.user.prompt";
     protected static final String PROPERTY_API_TEMPERATURE_TEMPLATE = "openai.%s.api.temperature";
     protected static final String PROPERTY_API_CACHE_TEMPLATE = "openai.%s.api.enable.cache";
     protected static final String PROPERTY_API_GLOSSARY_TEMPLATE = "openai.%s.api.enable.glossary";
@@ -707,6 +721,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         data.apiKey = getCredential(resolveConfigKey(configId, PROPERTY_API_KEY));
         data.apiUrl = Preferences.getPreference(resolveConfigKey(configId, PROPERTY_API_URL));
         data.prompt = Preferences.getPreference(resolveConfigKey(configId, PROPERTY_API_PROMPT));
+        data.userPrompt = Preferences.getPreference(resolveConfigKey(configId, PROPERTY_API_USER_PROMPT));
         data.temperature = Preferences.getPreference(resolveConfigKey(configId, PROPERTY_API_TEMPERATURE));
 
         String savedModel = Preferences.getPreference(resolveConfigKey(configId, PROPERTY_API_MODEL));
@@ -824,6 +839,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_USE_CUSTOM_MODEL), "");
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_PROVIDER), "");
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_PROMPT), "");
+        Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_USER_PROMPT), "");
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_TEMPERATURE), "");
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_CACHE), "");
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_GLOSSARY), "");
@@ -846,6 +862,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         setCredential(resolveConfigKey(configId, PROPERTY_API_KEY), data.apiKey, temporary);
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_URL), data.apiUrl);
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_PROMPT), data.prompt);
+        Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_USER_PROMPT), data.userPrompt);
         Preferences.setPreference(resolveConfigKey(configId, PROPERTY_API_TEMPERATURE), data.temperature);
 
         Preferences.setPreference(
@@ -875,6 +892,24 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
 
         // 注册额外的翻译插件实例
         registerAdditionalTranslators();
+
+        // 注册应用启动与项目监听，安装标签感知渲染器以在 MT 面板中正确高亮显示内嵌 XML/DocBook 标签
+        CoreEvents.registerApplicationEventListener(new IApplicationEventListener() {
+            @Override
+            public void onApplicationStartup() {
+                TagAwareHTMLEditorKit.install();
+            }
+
+            @Override
+            public void onApplicationShutdown() {}
+        });
+
+        CoreEvents.registerProjectChangeListener(new IProjectEventListener() {
+            @Override
+            public void onProjectChanged(PROJECT_CHANGE_TYPE eventType) {
+                TagAwareHTMLEditorKit.install();
+            }
+        });
     }
 
     /**
@@ -965,6 +1000,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         public String apiKey;
         public String apiUrl;
         public String prompt;
+        public String userPrompt;
         public String temperature;
         public String model;
         public String customModel;
@@ -987,6 +1023,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             this.apiKey = "";
             this.apiUrl = "";
             this.prompt = "";
+            this.userPrompt = "";
             this.temperature = "0";
             this.model = "gpt-4o";
             this.customModel = "";
@@ -1005,6 +1042,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             copy.apiKey = this.apiKey;
             copy.apiUrl = this.apiUrl;
             copy.prompt = this.prompt;
+            copy.userPrompt = this.userPrompt;
             copy.temperature = this.temperature;
             copy.model = this.model;
             copy.customModel = this.customModel;
@@ -1227,6 +1265,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         private JTextField configNameField; // 新增：配置名称
         private JTextArea apiKeyField;
         private JTextArea promptField;
+        private JTextArea userPromptField;
         private JTextField urlField;
         private JTextField temperatureField;
         private JComboBox<String> modelComboBox;
@@ -1303,8 +1342,10 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             });
             apiKeyField = createMultiLineTextArea(2);
             urlField = new JTextField();
-            promptField = createMultiLineTextArea(4);
-            promptField.setToolTipText(getString("CONFIG_PROMPT_HINT"));
+            promptField = createMultiLineTextArea(3);
+            promptField.setToolTipText(getString("CONFIG_SYSTEM_PROMPT_HINT"));
+            userPromptField = createMultiLineTextArea(3);
+            userPromptField.setToolTipText(getString("CONFIG_USER_PROMPT_HINT"));
             temperatureField = new JTextField();
             modelComboBox = new JComboBox<>();
             apiComboBox = new JComboBox<>();
@@ -1341,32 +1382,33 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
 
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_KEY_LABEL", apiKeyField, gbc, 2);
             addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_URL_LABEL", urlField, gbc, 3);
-            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_PROMPT_LABEL", promptField, gbc, 4);
-            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_TEMPERATURE_LABEL", temperatureField, gbc, 5);
-            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_MODEL_NAME_LABEL", modelComboBox, gbc, 6);
+            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_SYSTEM_PROMPT_LABEL", promptField, gbc, 4);
+            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_USER_PROMPT_LABEL", userPromptField, gbc, 5);
+            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_TEMPERATURE_LABEL", temperatureField, gbc, 6);
+            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_MODEL_NAME_LABEL", modelComboBox, gbc, 7);
 
             // 在同一位置添加自定义模型输入框，但初始隐藏
             gbc.gridx = 1;
-            gbc.gridy = 6;
+            gbc.gridy = 7;
             gbc.weightx = 1.0;
             credentialsPanel.add(customModelField, gbc);
 
-            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_API_FORMAT_LABEL", apiComboBox, gbc, 7);
+            addLabelAndField(credentialsPanel, "MT_ENGINE_OPENAI_API_FORMAT_LABEL", apiComboBox, gbc, 8);
 
             // 添加复选框
             gbc.gridx = 1;
-            gbc.gridy = 8;
-            credentialsPanel.add(useCustomModelCheckBox, gbc);
             gbc.gridy = 9;
-            credentialsPanel.add(glossaryCheckBox, gbc);
+            credentialsPanel.add(useCustomModelCheckBox, gbc);
             gbc.gridy = 10;
-            credentialsPanel.add(temporaryCheckBox, gbc);
+            credentialsPanel.add(glossaryCheckBox, gbc);
             gbc.gridy = 11;
+            credentialsPanel.add(temporaryCheckBox, gbc);
+            gbc.gridy = 12;
             credentialsPanel.add(cacheCheckBox, gbc);
 
             // 底部彈性空白填充，防止 HiDPI 放大時元件分散居中
             gbc.gridx = 0;
-            gbc.gridy = 12;
+            gbc.gridy = 13;
             gbc.gridwidth = 2;
             gbc.weighty = 1.0;
             gbc.fill = GridBagConstraints.BOTH;
@@ -1384,6 +1426,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             apiKeyField.setText(configData.apiKey);
             urlField.setText(configData.apiUrl);
             promptField.setText(configData.prompt);
+            userPromptField.setText(configData.userPrompt != null ? configData.userPrompt : "");
             temperatureField.setText(configData.temperature);
 
             // 设置模型下拉框
@@ -1412,6 +1455,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
             configData.apiKey = apiKeyField.getText().trim();
             configData.apiUrl = urlField.getText().trim();
             configData.prompt = promptField.getText().trim();
+            configData.userPrompt = userPromptField.getText().trim();
             configData.temperature = temperatureField.getText().trim();
 
             configData.useCustomModel = useCustomModelCheckBox.isSelected();
@@ -1501,9 +1545,12 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 if (field == promptField) {
                     JPanel promptContainer = new JPanel(new BorderLayout(0, 4));
                     promptContainer.add(scrollPane, BorderLayout.CENTER);
-                    JLabel hintLabel = new JLabel("<html><small><font color='gray'>" + getString("CONFIG_PROMPT_HINT")
-                            + "</font></small></html>");
-                    promptContainer.add(hintLabel, BorderLayout.SOUTH);
+                    promptContainer.add(createHintLabel(getString("CONFIG_SYSTEM_PROMPT_HINT")), BorderLayout.SOUTH);
+                    panel.add(promptContainer, gbc);
+                } else if (field == userPromptField) {
+                    JPanel promptContainer = new JPanel(new BorderLayout(0, 4));
+                    promptContainer.add(scrollPane, BorderLayout.CENTER);
+                    promptContainer.add(createHintLabel(getString("CONFIG_USER_PROMPT_HINT")), BorderLayout.SOUTH);
                     panel.add(promptContainer, gbc);
                 } else {
                     panel.add(scrollPane, gbc);
@@ -1512,6 +1559,24 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 panel.add(field, gbc);
             }
             gbc.weightx = 0.0;
+        }
+
+        private JLabel createHintLabel(String text) {
+            JLabel label =
+                    new JLabel("<html><body style='width: 440px; margin-top: 3px; font-size: 11px; line-height: 1.3;'>"
+                            + text + "</body></html>");
+            Color fg = UIManager.getColor("Label.foreground");
+            if (fg != null) {
+                Color bg = UIManager.getColor("Label.background");
+                if (bg == null) {
+                    bg = Color.WHITE;
+                }
+                int r = (int) (fg.getRed() * 0.85 + bg.getRed() * 0.15);
+                int g = (int) (fg.getGreen() * 0.85 + bg.getGreen() * 0.15);
+                int b = (int) (fg.getBlue() * 0.85 + bg.getBlue() * 0.15);
+                label.setForeground(new Color(r, g, b));
+            }
+            return label;
         }
 
         public ConfigTabData getConfigData() {
@@ -1539,6 +1604,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         // 兼容性属性，用于向后兼容
         public javax.swing.JTextArea apiKeyField;
         public javax.swing.JTextArea promptField;
+        public javax.swing.JTextArea userPromptField;
         public javax.swing.JTextField urlField;
         public javax.swing.JTextField temperatureField;
         public javax.swing.JComboBox<String> modelComboBox;
@@ -1615,6 +1681,7 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
                 // 更新兼容性属性引用
                 this.apiKeyField = currentPanel.apiKeyField;
                 this.promptField = currentPanel.promptField;
+                this.userPromptField = currentPanel.userPromptField;
                 this.urlField = currentPanel.urlField;
                 this.temperatureField = currentPanel.temperatureField;
                 this.modelComboBox = currentPanel.modelComboBox;
@@ -1701,8 +1768,8 @@ public class OpenaiTranslate extends BaseOpenaiTranslate {
         }
 
         public void show() {
-            dialog.setPreferredSize(new Dimension(680, 640));
-            dialog.setMinimumSize(new Dimension(560, 480));
+            dialog.setPreferredSize(new Dimension(700, 680));
+            dialog.setMinimumSize(new Dimension(580, 520));
             dialog.setResizable(true);
             dialog.pack();
             dialog.setLocationRelativeTo(dialog.getOwner());
