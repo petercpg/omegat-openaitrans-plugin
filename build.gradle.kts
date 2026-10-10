@@ -51,7 +51,7 @@ dependencies {
     compileOnly("org.omegat:omegat:${omegat.version.get()}")
 
     // Uber JAR
-    val jacksonVersion = "2.17.2"
+    val jacksonVersion = "2.22"
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     packIntoJar("com.fasterxml.jackson.core:jackson-core:$jacksonVersion")
     packIntoJar("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
