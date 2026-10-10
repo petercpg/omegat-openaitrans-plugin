@@ -18,7 +18,7 @@ if (project.hasProperty("customVersion")) {
     version = (project.property("customVersion") as String).trim().removePrefix("v")
 } else if (dotgit.exists() && isJava17OrHigher) {
     apply(plugin = "com.palantir.git-version")
-    val versionDetails: groovy.lang.Closure<*> by extra
+    val versionDetails = extra["versionDetails"] as groovy.lang.Closure<*>
     val details = versionDetails.call()
     val lastTagMethod = details.javaClass.interfaces
         .firstOrNull { it.simpleName == "VersionDetails" }
@@ -98,8 +98,8 @@ tasks.withType<Sign> {
 signing {
     when (signKey) {
         "signingKey" -> {
-            val signingKey: String? by project
-            val signingPassword: String? by project
+            val signingKey = project.findProperty("signingKey") as? String
+            val signingPassword = project.findProperty("signingPassword") as? String
             useInMemoryPgpKeys(signingKey, signingPassword)
         }
 
@@ -114,7 +114,7 @@ signing {
     sign(tasks.jar.get())
 }
 
-val jar by tasks.getting(Jar::class) {
+tasks.named<Jar>("jar") {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
