@@ -1,4 +1,4 @@
-# OmegaT OpenAI Translation Plugin
+# AI LLM Translate Plugin for OmegaT
 [简体中文](https://github.com/inertia42/omegat-openaitrans-plugin/blob/master/README_CN.md) | English
 
 A plugin that calls OpenAI, Claude, and Google Gemini APIs for translation with the following features:
@@ -11,7 +11,7 @@ A plugin that calls OpenAI, Claude, and Google Gemini APIs for translation with 
 ## Usage
 > Using OpenAI, Claude, or Gemini API requires an `API KEY`. This project does not provide API keys.
 1. Download the jar file from releases and place it in the OmegaT plugins directory. This directory should be in the plugins folder under your OmegaT installation directory by default.
-2. (Required) Open OmegaT, go to Options - Preferences - Machine Translation, select Openai Translator, click Configure, and enter your apikey.
+2. (Required) Open OmegaT, go to Options - Preferences - Machine Translation, select AI LLM Translate, click Configure, and enter your apikey.
 3. (Required) Enter the corresponding URL in the `URL` field (for Gemini, leave empty or use `https://generativelanguage.googleapis.com`).
 4. (Optional) Enter a custom prompt in the `Prompt` field. If not needed, leave it empty. If you choose to customize, language auto-detection will be disabled, and you'll need to specify the target language in your prompt. If left empty, the default prompt will be used with automatic target language setting.
 5. (Optional) Modify the `temperature` parameter, default is 0.
@@ -82,7 +82,18 @@ If you need to use a model that's not listed in the dropdown, you can use the `U
 
 ## About Prompts
 ### Translation Prompt
-The default prompt is `Please translate the following text from {source language} to {target language}`. To maintain flexibility for custom prompts, special prompt techniques are not hardcoded. If needed, you can set your own prompt. For example, if you encounter responses unrelated to translation, you can add translation-specific prompts and emphasize at the end not to return content unrelated to the translation.
+The default prompt automatically fills in the source and target languages based on the OmegaT project settings.
+
+In custom prompts, the following language placeholders are supported (automatically substituted with the current project's language codes):
+* `%1$s` or `${sourceLang}`: Source language code (e.g., `en`)
+* `%2$s` or `${targetLang}`: Target language code (e.g., `zh` or `zh-TW`)
+* Sequential `%s` placeholders are also supported (first for source, second for target).
+
+Using `%1$s` and `%2$s` allows arbitrary ordering and multiple references, for example:
+```text
+Translate from %1$s to %2$s. When %2$s is zh-TW, use Traditional Chinese (Taiwan)...
+```
+If left empty, the built-in CAT tag-preserving prompt will be used.
 
 ### Glossary-related Prompt
 The glossary section is appended directly after the translation prompt in the format: `You can refer to the following glossary when translating: {glossary}`. If there are no matching glossary terms for the current segment, this prompt will not be added.

@@ -1,4 +1,4 @@
-# OmegaT OpenAI 翻译插件
+# OmegaT AI LLM 翻译插件
  简体中文 | [English](https://github.com/inertia42/omegat-openaitrans-plugin/blob/master/README.md)
 
 调用 OpenAI、Claude 及 Google Gemini API 进行翻译，有如下功能
@@ -11,7 +11,7 @@
 ## 使用方法
 > 使用 OpenAI、Claude 或 Gemini API 需要拥有相应的 `API KEY`，本项目不提供 `API KEY`。
 1. 下载 releases 里的 jar 文件，将其放进 OmegaT 插件目录。这个目录默认应该在 OmegaT 安装目录下的 plugins 文件夹。
-2. （必须）打开 OmegaT，选项——首选项——机器翻译，选中 Openai Translator，点击配置，然后填入 apikey
+2. （必须）打开 OmegaT，选项——首选项——机器翻译，选中 AI LLM Translate，点击配置，然后填入 apikey
 3. （必须）在 `URL` 处填入对应的 URL（若使用 Gemini，可留空或填入 `https://generativelanguage.googleapis.com`）。
 4. （可选）在 `Prompt` 框内填入自定义的 prompt，如无需要可以不填。如果选择自定义，则不会自动识别语言，需要自行在 prompt 中指定目标语言，若留空则会使用默认 prompt，并自动设置目标语言。
 5. （可选）修改 `temperature`，默认设置为 0。
@@ -82,7 +82,18 @@
 
 ## 关于 prompt 的说明
 ### 翻译部分 prompt
-默认的 prompt 为 `Please translate the following text from {source language} to {target language}`，为了不影响自定义 prompt 的灵活性，并未使用和硬编码一些特殊的 prompt 技巧，如有需要，可以自行设置 prompt。例如若碰到返回与翻译内容无关的结果，可以自行添加翻译相关的 prompt，并在末尾强调不要返回与翻译结果无关的内容。
+默认的 prompt 会自动根据 OmegaT 專案語言設定填入來源與目標語言。
+
+在自訂 Prompt 中，支援以下語言佔位符（會自動代入當前專案的來源語言與目標語言代碼）：
+* `%1$s` 或 `${sourceLang}`：來源語言代碼（例如 `en`）
+* `%2$s` 或 `${targetLang}`：目標語言代碼（例如 `zh` 或 `zh-TW`）
+* 也支援傳統順序佔位符 `%s`（第一個為來源語言，第二個為目標語言）。
+
+使用 `%1$s` 與 `%2$s` 可以隨意指定順序或多次重複引用，例如：
+```text
+Translate from %1$s to %2$s. When %2$s is zh-TW, use Traditional Chinese (Taiwan)...
+```
+若留空則會使用預設的 CAT 標籤保護 Prompt。
 
 ### 术语表相关的 prompt
 术语表部分直接附在翻译 prompt 后，格式为 `You can refer to the following glossary when translating: {glossary}`。若该段对应术语表为空，则不会附加相关 prompt。
