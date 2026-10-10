@@ -1,17 +1,15 @@
-# Compiled class file
+# Compiled class files
 *.class
 
-# Log file
+# Log files
 *.log
+hs_err_pid*
+replay_pid*
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
+# Package files (dist/build outputs)
+build/
+dist/
+out/
 *.war
 *.nar
 *.ear
@@ -19,17 +17,40 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
+# Package files in root
+/*.jar
 
-build
-.idea
-nbproject
-.gradle
-.nb-gradle
+# Gradle cache
+.gradle/
 
-#mine
-gradle
+# Allow gradle wrapper
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
-# Claude configuration
+# IDEs and Editors
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.project
+.classpath
+.settings/
+nbproject/private/
+.nb-gradle/
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Mobile Tools for Java (J2ME) / BlueJ
+.mtj.tmp/
+*.ctxt
+
+# AI Assistant configs
 CLAUDE.md
