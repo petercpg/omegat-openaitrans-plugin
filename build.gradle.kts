@@ -13,11 +13,14 @@ plugins {
 }
 
 val dotgit = project.file(".git")
-if (dotgit.exists()) {
+if (project.hasProperty("customVersion")) {
+    version = (project.property("customVersion") as String).trim().removePrefix("v")
+} else if (dotgit.exists()) {
     apply(plugin = "com.palantir.git-version")
     val versionDetails: groovy.lang.Closure<com.palantir.gradle.gitversion.VersionDetails> by extra
     val details = versionDetails()
-    val baseVersion = details.lastTag.substring(1)
+    val rawTag = details.lastTag
+    val baseVersion = if (rawTag.startsWith("v")) rawTag.substring(1) else rawTag
     version = when {
         details.isCleanTag -> baseVersion
         else -> baseVersion

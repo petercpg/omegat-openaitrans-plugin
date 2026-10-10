@@ -2,8 +2,26 @@ name: Release
 
 on:
   push:
+    branches:
+      - master
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      bump:
+        type: choice
+        description: 'Version bump type (auto: based on commits; major/minor/patch: manual bump; custom: specify version)'
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+          - custom
+        default: 'auto'
+      custom_version:
+        description: 'Custom version (e.g. v3.0.0, used if bump is custom or to override major)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -20,7 +38,96 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine version tag
+        id: vars
+        run: |
+          set -e
+          EVENT="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+          BUMP_INPUT="${{ inputs.bump }}"
+          CUSTOM_INPUT="${{ inputs.custom_version }}"
+
+          # Check if commit message contains [skip release]
+          if [ "$EVENT" = "push" ] && [[ "$REF" != refs/tags/* ]]; then
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            if echo "$COMMIT_MSG" | grep -iqE "\[skip (release|ci)\]"; then
+              echo "Commit message requests skipping release."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          # Fetch all remote tags
+          git fetch --tags --force 2>/dev/null || true
+
+          # Find latest semver tag (vX.Y.Z)
+          LATEST_TAG=$(git tag -l "v*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n 1 || true)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v2.1.0"
+          fi
+          echo "Latest existing tag: $LATEST_TAG"
+
+          VERSION="${LATEST_TAG#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3 | cut -d- -f1)
+
+          if [ "$EVENT" = "push" ] && [[ "$REF" == refs/tags/v* ]]; then
+            # Direct tag push (e.g. git push origin v3.0.0)
+            NEW_TAG="${REF#refs/tags/}"
+            NEED_PUSH_TAG="false"
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$BUMP_INPUT" = "custom" ] && [ -n "$CUSTOM_INPUT" ]; then
+            NEW_TAG="${CUSTOM_INPUT}"
+            [[ "$NEW_TAG" != v* ]] && NEW_TAG="v${NEW_TAG}"
+            NEED_PUSH_TAG="true"
+          else
+            # Determine bump type (patch, minor, major)
+            if [ "$EVENT" = "workflow_dispatch" ] && [ -n "$BUMP_INPUT" ] && [ "$BUMP_INPUT" != "auto" ]; then
+              BUMP="$BUMP_INPUT"
+            else
+              # Auto-detect from commits since last tag
+              COMMITS=$(git log "${LATEST_TAG}..HEAD" --oneline 2>/dev/null || git log -n 10 --oneline)
+              if echo "$COMMITS" | grep -iqE "(BREAKING CHANGE|#major|feat!:)"; then
+                BUMP="major"
+              elif echo "$COMMITS" | grep -iqE "(^.{0,10}feat(\(.*\))?:|#minor)"; then
+                BUMP="minor"
+              else
+                BUMP="patch"
+              fi
+            fi
+
+            echo "Calculated bump type: $BUMP"
+            if [ "$BUMP" = "major" ]; then
+              if [ -n "$CUSTOM_INPUT" ]; then
+                NEW_TAG="${CUSTOM_INPUT}"
+                [[ "$NEW_TAG" != v* ]] && NEW_TAG="v${NEW_TAG}"
+              else
+                NEW_TAG="v$((MAJOR + 1)).0.0"
+              fi
+            elif [ "$BUMP" = "minor" ]; then
+              NEW_TAG="v${MAJOR}.$((MINOR + 1)).0"
+            else
+              NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+            fi
+            NEED_PUSH_TAG="true"
+          fi
+
+          echo "Target Release Tag: $NEW_TAG"
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "clean_version=${NEW_TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "need_push_tag=$NEED_PUSH_TAG" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.vars.outputs.skip != 'true' && steps.vars.outputs.need_push_tag == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.vars.outputs.tag }}"
+          git push origin "${{ steps.vars.outputs.tag }}"
+
       - name: Set up JDK 11
+        if: steps.vars.outputs.skip != 'true'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -28,12 +135,15 @@ jobs:
           cache: 'gradle'
 
       - name: Grant execute permission for gradlew
+        if: steps.vars.outputs.skip != 'true'
         run: chmod +x gradlew
 
       - name: Build and Package
-        run: ./gradlew check && ./gradlew jar
+        if: steps.vars.outputs.skip != 'true'
+        run: ./gradlew check && ./gradlew jar -PcustomVersion=${{ steps.vars.outputs.tag }}
 
       - name: Generate SBOM (SPDX format)
+        if: steps.vars.outputs.skip != 'true'
         uses: anchore/sbom-action@v0
         with:
           path: ./build/libs
@@ -41,19 +151,24 @@ jobs:
           output-file: build/libs/sbom.spdx.json
 
       - name: Attest Build Provenance
+        if: steps.vars.outputs.skip != 'true'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: 'build/libs/*.jar'
 
       - name: Attest SBOM
+        if: steps.vars.outputs.skip != 'true'
         uses: actions/attest-sbom@v2
         with:
           subject-path: 'build/libs/*.jar'
           sbom-path: 'build/libs/sbom.spdx.json'
 
       - name: Create GitHub Release
+        if: steps.vars.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: ${{ steps.vars.outputs.tag }}
           files: |
             build/libs/*.jar
             build/libs/sbom.spdx.json
