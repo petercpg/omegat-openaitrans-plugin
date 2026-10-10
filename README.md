@@ -3,10 +3,13 @@
 
 A plugin that calls OpenAI, Claude, and Google Gemini APIs for translation with the following features:
 * Support for multiple models (OpenAI, Claude, Gemini, DeepSeek)
+* **CAT Tag Preservation & Highlighted Display**: Fixes OmegaT's native limitation where inline XML/DocBook tags (`<guibutton>`, `<placeholder .../>`, `<b0>`) are swallowed by the MT pane; renders tags with adaptive syntax highlighting while preserving pristine tags for `Ctrl+M` insertion
+* Multi-configuration support with independent tabs for different models and providers
+* Dual-Prompt architecture (System Prompt + User Prompt) to customize tone and instructions without compromising tag protection
 * Customizable API URL (supports custom proxies and official endpoints)
-* Customizable prompts
 * Adjustable temperature parameter
 * Glossary integration
+* High-performance translation caching (Caffeine / JCache)
 
 ## Usage
 > Using OpenAI, Claude, or Gemini API requires an `API KEY`. This project does not provide API keys.
@@ -21,55 +24,6 @@ A plugin that calls OpenAI, Claude, and Google Gemini APIs for translation with 
 9. (Optional) Enable caching. When enabled, previously translated results will be searched first. Cache is cleared when the project is closed.
 10. Finally, check Enable, click OK and close the preferences window.
 
-## Currently Supported Models
-The following models are currently supported:
-
-| Model Name          | Provider |
-|--------------------|----------|
-| gemini-3.8-flash   | Gemini   |
-| gemini-3.7-flash   | Gemini   |
-| gemini-3.6-flash   | Gemini   |
-| gemini-3.5-flash-lite | Gemini |
-| gemini-3.1-pro     | Gemini   |
-| gemini-2.5-pro     | Gemini   |
-| gemini-2.5-flash   | Gemini   |
-| gemini-2.5-flash-lite | Gemini |
-| gemini-2.0-flash   | Gemini   |
-| gemini-2.0-flash-lite | Gemini |
-| gemini-2.0-pro-exp-02-05 | Gemini |
-| gemini-2.0-flash-thinking-exp-01-21 | Gemini |
-| gemini-1.5-pro     | Gemini   |
-| gemini-1.5-flash   | Gemini   |
-| gemini-1.5-flash-8b | Gemini  |
-| gpt-5              | OpenAI   |
-| gpt-5-mini         | OpenAI   |
-| gpt-5-nano         | OpenAI   |
-| gpt-4.1            | OpenAI   |
-| gpt-4.1-mini       | OpenAI   |
-| gpt-4.1-nano       | OpenAI   |
-| gpt-4o             | OpenAI   |
-| gpt-4o-2024-11-20  | OpenAI   |
-| gpt-4o-2024-08-06  | OpenAI   |
-| gpt-4o-2024-05-13  | OpenAI   |
-| gpt-4o-mini        | OpenAI   |
-| gpt-4              | OpenAI   |
-| gpt-4-turbo        | OpenAI   |
-| gpt-3.5-turbo      | OpenAI   |
-| gpt-3.5            | OpenAI   |
-| claude-opus-4-1-20250805   | Claude   |
-| claude-opus-4-20250514     | Claude   |
-| claude-sonnet-4-20250514   | Claude   |
-| claude-3-7-sonnet-20250219 | Claude   |
-| claude-3-5-sonnet-20241022 | Claude   |
-| claude-3-5-sonnet-20240620 | Claude   |
-| claude-3-opus-20240229     | Claude   |
-| claude-3-sonnet-20240229   | Claude   |
-| claude-3-5-haiku-20241022  | Claude   |
-| claude-3-haiku-20240307    | Claude   |
-| deepseek-chat              | DeepSeek |
-
-Some models may not have been tested. If you encounter any issues, please report them through issues. If you need additional models added, please also request through issues.
-
 ## Custom Model Support
 If you need to use a model that's not listed in the dropdown, you can use the `Use Custom Model` feature:
 1. Check the `Use Custom Model` checkbox at the bottom of the configuration dialog
@@ -80,20 +34,33 @@ If you need to use a model that's not listed in the dropdown, you can use the `U
    - Custom fine-tuned models
    - Models from alternative API providers that use compatible formats
 
-## About Prompts
-### Translation Prompt
-The default prompt automatically fills in the source and target languages based on the OmegaT project settings.
+## CAT Tag Preservation & Highlighted Display
+In OmegaT, machine-translated results with inline XML, HTML, or DocBook tags (such as `<guibutton>...</guibutton>`, `<placeholder type="inlinemediaobject" id="0"/>`, `<b0>...</b0>`) were historically hidden by OmegaT's built-in HTML display pane because Swing's renderer treats unknown tags as invisible markup.
 
-In custom prompts, the following language placeholders are supported (automatically substituted with the current project's language codes):
+This plugin introduces an intelligent **Tag-Aware rendering engine** (`TagAwareHTMLEditorKit`):
+* **Visible & Syntax-Highlighted**: Inline tags are rendered visibly in the Machine Translation pane with beautiful, theme-adaptive syntax highlighting (vibrant blue for inline tags, royal purple for placeholder tags; automatically adjusted for light and dark themes).
+* **Native `Ctrl+M` Integration**: Unlike naive HTML entity approaches, the underlying translation data in memory remains pure, unmodified text. Pressing `Ctrl+M` inserts the exact, valid XML tags into the editor, passing OmegaT's Tag Validation 100%.
+* **Universal Benefit**: Once loaded, all other MT engines enabled in OmegaT (such as Google Translate or DeepL) also automatically benefit from this tag display fix.
+
+## About Prompts
+### System Prompt & User Prompt
+The plugin supports two separate prompt inputs for maximum flexibility and tag safety:
+1. **System Prompt**:
+   - If left empty, the built-in CAT tag-preserving default prompt will be used.
+   - If filled in, it will override the default prompt.
+2. **User Prompt (Additional Instructions)**:
+   - Content entered here is **appended** after the System Prompt under `ADDITIONAL INSTRUCTIONS:`.
+   - This allows you to add custom guidelines (e.g. style, locale conventions, tone) without losing the built-in tag-preservation and format rules.
+
+Both prompts support the following language placeholders:
 * `%1$s` or `${sourceLang}`: Source language code (e.g., `en`)
 * `%2$s` or `${targetLang}`: Target language code (e.g., `zh` or `zh-TW`)
 * Sequential `%s` placeholders are also supported (first for source, second for target).
 
-Using `%1$s` and `%2$s` allows arbitrary ordering and multiple references, for example:
+For example, in **User Prompt**:
 ```text
-Translate from %1$s to %2$s. When %2$s is zh-TW, use Traditional Chinese (Taiwan)...
+When %2$s is zh-TW, use Traditional Chinese terms and punctuation conventions for Taiwan.
 ```
-If left empty, the built-in CAT tag-preserving prompt will be used.
 
 ### Glossary-related Prompt
 The glossary section is appended directly after the translation prompt in the format: `You can refer to the following glossary when translating: {glossary}`. If there are no matching glossary terms for the current segment, this prompt will not be added.
@@ -101,4 +68,6 @@ The glossary section is appended directly after the translation prompt in the fo
 ## License
 This project is licensed under GPL 3.0.
 
-Thanks to [omegat-niutrans-plugin project](https://github.com/xflcx1991/omegat-niutrans-plugin) and [azure-translate-plugin project](https://github.com/omegat-org/azure-translate-plugin). Some code in this project is forked from these two projects.
+## Credits & Acknowledgments
+* **Original Project & Author**: This repository is a fork of [omegat-openaitrans-plugin](https://github.com/inertia42/omegat-openaitrans-plugin) created by [Inertia (@inertia42)](https://github.com/inertia42). Sincere appreciation to Inertia for laying the initial groundwork and architecture!
+* Special thanks to [omegat-niutrans-plugin](https://github.com/xflcx1991/omegat-niutrans-plugin) and [azure-translate-plugin](https://github.com/omegat-org/azure-translate-plugin) for reference implementations and foundational code.
