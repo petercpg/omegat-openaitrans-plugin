@@ -71,7 +71,7 @@ dependencies {
     packIntoJar("com.fasterxml.jackson.core:jackson-core:$jacksonVersion")
     packIntoJar("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     packIntoJar("com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion")
-    packIntoJar("net.bytebuddy:byte-buddy:1.18.14")
+    packIntoJar("net.bytebuddy:byte-buddy:1.18.15")
 
     // Annotations
     compileOnly("org.jetbrains:annotations:26.1.0")
