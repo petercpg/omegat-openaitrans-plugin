@@ -9,7 +9,7 @@ plugins {
     id("org.gradle.crypto.checksum") version "1.4.0"
     id("com.diffplug.spotless") version "8.11.0"
     id("org.omegat.gradle") version "2.0.0-rc2"
-    id("com.palantir.git-version") version "5.1.0" apply false
+    id("com.palantir.git-version") version "5.2.0" apply false
 }
 
 val dotgit = project.file(".git")
