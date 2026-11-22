@@ -66,11 +66,13 @@ dependencies {
     compileOnly("org.omegat:omegat:${omegat.version.get()}")
 
     // Uber JAR
-    val jacksonVersion = "2.23"
-    implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
-    packIntoJar("com.fasterxml.jackson.core:jackson-core:$jacksonVersion")
-    packIntoJar("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
-    packIntoJar("com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion")
+    val jacksonCoreVersion = "2.23.0"
+    val jacksonDatabindVersion = "2.23.0"
+    val jacksonAnnotationsVersion = "2.23"
+    implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonDatabindVersion")
+    packIntoJar("com.fasterxml.jackson.core:jackson-core:$jacksonCoreVersion")
+    packIntoJar("com.fasterxml.jackson.core:jackson-databind:$jacksonDatabindVersion")
+    packIntoJar("com.fasterxml.jackson.core:jackson-annotations:$jacksonAnnotationsVersion")
     packIntoJar("net.bytebuddy:byte-buddy:1.18.17")
 
     // Annotations
